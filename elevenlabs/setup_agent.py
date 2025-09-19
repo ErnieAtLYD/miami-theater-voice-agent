@@ -34,7 +34,6 @@ def create_webhook_tool(client, vercel_url):
         "url": f"{vercel_url}/api/showtimes",
         "method": "GET",
         "query_params_schema": {
-            "type": "object",
             "properties": {
                 "date": {
                     "type": "string",
@@ -55,18 +54,18 @@ def create_webhook_tool(client, vercel_url):
                     "enum": ["afternoon", "evening", "night"],
                     "description": "Filter by time of day: 'afternoon' (12-5 PM), 'evening' (5-9 PM), 'night' (9 PM+)"
                 }
-            },
-            "additionalProperties": False
+            }
         },
         "request_headers": {
             "Content-Type": "application/json",
-            "User-Agent": "ElevenLabs-Agent/1.0"
+            "User-Agent": "ElevenLabs-Agent/1.0",
+            "Authorization": f"Bearer {os.getenv('API_TOKEN', 'your-api-token-here')}"
         }
     }
 
     # Create the webhook tool
     webhook_config = WebhookRequestModel(
-        name="Miami Theater Showtimes",
+        name="Miami-Theater-Showtimes",
         description="Get current movie showtimes for Miami theaters. Can search by date, movie title, day type (today/tomorrow/weekend), or time preference (afternoon/evening/night).",
         response_timeout_secs=10,
         api_schema=api_schema
@@ -122,7 +121,7 @@ Always be friendly, helpful, and provide clear information about Miami theater s
             "agent": {
                 "prompt": {
                     "prompt": system_prompt,
-                    "tools": [tool_id] if tool_id else []
+                    "tool_ids": [tool_id] if tool_id else []
                 },
                 "first_message": "Hi! I'm your Miami theater assistant. I can help you find movie showtimes at local theaters. What would you like to know about current movies and showtimes?"
             }
