@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/ingest-showtimes",
+      "schedule": "*/30 * * * *"
+    }
+  ]
+}
