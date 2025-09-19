@@ -1,0 +1,22 @@
+{
+  "name": "miami-theater-elevenlabs-setup",
+  "version": "1.0.0",
+  "description": "ElevenLabs agent setup for Miami theater voice agent",
+  "main": "setup_agent.js",
+  "scripts": {
+    "setup": "node setup_agent.js",
+    "start": "node setup_agent.js"
+  },
+  "dependencies": {
+    "elevenlabs": "^0.15.0",
+    "dotenv": "^16.0.0"
+  },
+  "keywords": [
+    "elevenlabs",
+    "voice-agent",
+    "theater",
+    "showtimes"
+  ],
+  "author": "Your Name",
+  "license": "ISC"
+}
