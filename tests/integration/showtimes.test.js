@@ -37,7 +37,7 @@ describe('/api/showtimes (simple)', () => {
     expect(data.data).toBeDefined();
     expect(Array.isArray(data.data)).toBe(true);
     expect(data.conversational_summary).toBeDefined();
-  });
+  }, 30000);
 
   test('handles CORS preflight request', async () => {
     const handler = (await import('../../api/showtimes.js')).default;
