@@ -42,15 +42,15 @@ export default async function handler(req, res) {
     
     // Cache in Upstash Redis with 2-hour TTL (safety buffer)
     await redis.setex('showtimes:current', 7200, JSON.stringify(processedData));
-    await redis.setex('showtimes:last_updated', 7200, new Date().toISOString());
+    await redis.setex('showtimes:last_updated', 7200, getEasternTimeISO());
     
     console.log(`Successfully cached ${processedData.movies.length} movies with ${processedData.total_showtimes} showtimes`);
     
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       movies_count: processedData.movies.length,
       total_showtimes: processedData.total_showtimes,
-      last_updated: new Date().toISOString(),
+      last_updated: getEasternTimeISO(),
       agile_last_updated: rawData.LastUpdated
     });
     
@@ -108,7 +108,8 @@ function processAgileShowtimeData(rawData) {
   const upcoming = [];
   let totalShowtimes = 0;
   
-  const today = new Date();
+  // Use Eastern Time for date comparisons
+  const today = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
   const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
   
   movies.forEach(movie => {
@@ -148,7 +149,7 @@ function processAgileShowtimeData(rawData) {
     weekend: byWeekend,
     upcoming: upcoming,
     total_showtimes: totalShowtimes,
-    last_updated: new Date().toISOString(),
+    last_updated: getEasternTimeISO(),
     agile_last_updated: rawData.LastUpdated,
     source: rawData.SourceLink,
     venue_info: {
@@ -163,11 +164,18 @@ function processAgileShowtimeData(rawData) {
 function formatTime(dateTimeString) {
   if (!dateTimeString) return null;
   const date = new Date(dateTimeString);
-  return date.toLocaleTimeString('en-US', { 
-    hour: 'numeric', 
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
     minute: '2-digit',
-    hour12: true 
+    hour12: true,
+    timeZone: 'America/New_York'  // Force Eastern Time
   });
+}
+
+function getEasternTimeISO() {
+  const now = new Date();
+  const easternTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  return easternTime.toISOString();
 }
 
 function extractRatingFromDescription(description) {

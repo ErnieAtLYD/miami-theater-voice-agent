@@ -9,3 +9,4 @@ node_modules
 .env.test
 .env.production
 coverage/
+.env*.local
