@@ -1,6 +1,8 @@
 # Miami Theater Voice Agent
 
-A Vercel-hosted voice agent API for Miami theater showtimes, designed to integrate with ElevenLabs' voice agent system. The application fetches theater data from Agile WebSales and serves it through a REST API optimized for voice interaction using serverless functions.
+A voice agent API for O Cinema Miami theater showtimes that fetches data from Agile Ticketing Solutions' API and serves it optimized for voice interaction.
+
+
 
 ## Features
 
@@ -62,6 +64,50 @@ curl "https://your-domain.vercel.app/api/showtimes?day_type=weekend&time_prefere
 
 Automated endpoint for data ingestion (secured with bearer token).
 
+## ElevenLabs Voice Agent Integration
+
+This API is optimized for ElevenLabs Conversational AI, enabling natural voice queries about Miami theater showtimes.
+
+### Quick Setup
+
+1. **Install Dependencies**
+   ```bash
+   # Python
+   pip install elevenlabs>=1.0.0
+
+   # Or Node.js
+   npm install elevenlabs dotenv
+   ```
+
+2. **Configure Environment**
+   ```bash
+   # Add to your .env file
+   ELEVENLABS_API_KEY=sk-your-elevenlabs-api-key
+   VERCEL_APP_URL=https://your-app.vercel.app
+   ```
+
+3. **Run Setup Script**
+   ```bash
+   cd elevenlabs
+   python setup_agent.py  # or: node setup_agent.js
+   ```
+
+### Voice Interactions
+
+Users can ask natural questions like:
+- *"What movies are playing tonight?"* → Today's evening showtimes
+- *"When is The Substance showing?"* → All showtimes for that movie
+- *"Any afternoon shows tomorrow?"* → Tomorrow's 12-5 PM showtimes
+- *"What's playing this weekend?"* → Friday-Sunday showtimes
+
+The API returns voice-optimized responses with conversational summaries for natural text-to-speech.
+
+### Troubleshooting
+
+- **Tool creation failed**: Verify `ELEVENLABS_API_KEY` is correct
+- **Agent can't reach API**: Ensure `VERCEL_APP_URL` points to deployed app
+- **Test directly**: `curl "your-app.vercel.app/api/showtimes?day_type=today"`
+
 ## Setup
 
 ### Prerequisites
@@ -79,22 +125,24 @@ Create a `.env.local` file for local development:
 # Agile WebSales API
 AGILE_GUID=your-agile-guid-here
 
-# Upstash Redis Configuration
+# Redis Configuration (choose ONE option)
+
+# Option 1: Direct Upstash Redis
 UPSTASH_REDIS_REST_URL=https://your-region.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your-redis-rest-token
 
-# Alternative Redis environment variables (Vercel KV)
-KV_REST_API_URL=https://your-region.upstash.io
-KV_REST_API_TOKEN=your-redis-rest-token
+# Option 2: Vercel KV (powered by Upstash)
+# KV_REST_API_URL=https://your-region.kv.vercel-storage.com
+# KV_REST_API_TOKEN=your-vercel-kv-token
 
 # Cron Job Security
 CRON_SECRET=your-secure-random-string
 ```
 
-**Redis Setup Options:**
-- Use `UPSTASH_REDIS_REST_*` for direct Upstash integration
-- Use `KV_REST_API_*` when using Vercel KV (powered by Upstash)
-- The application automatically detects and uses available credentials
+**Redis Setup Options (choose one):**
+- **Direct Upstash**: Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+- **Vercel KV**: Set `KV_REST_API_URL` and `KV_REST_API_TOKEN` (automatically provisioned in Vercel dashboard)
+- The application automatically detects which credentials are available
 
 ### Local Development
 
@@ -126,9 +174,14 @@ vercel
 
 # Set required environment variables
 vercel env add AGILE_GUID
+vercel env add CRON_SECRET
+
+# Add Redis credentials (choose one option)
+# For direct Upstash:
 vercel env add UPSTASH_REDIS_REST_URL
 vercel env add UPSTASH_REDIS_REST_TOKEN
-vercel env add CRON_SECRET
+
+# For Vercel KV (alternative - provision via Vercel dashboard instead)
 
 # Deploy updates
 vercel --prod
@@ -246,134 +299,6 @@ vercel logs
 vercel logs --filter="/api/cron"
 ```
 
-## ElevenLabs Voice Agent Integration
-
-### Overview
-
-This project includes complete integration with ElevenLabs Conversational AI, allowing users to ask natural voice questions about Miami theater showtimes and receive spoken responses.
-
-### Quick Setup
-
-1. **Prerequisites**
-   ```bash
-   # Install ElevenLabs Python SDK
-   pip install elevenlabs>=1.0.0
-
-   # Or use Node.js version
-   npm install elevenlabs dotenv
-   ```
-
-2. **Environment Configuration**
-   ```bash
-   # Add to your .env file
-   ELEVENLABS_API_KEY=sk-your-elevenlabs-api-key
-   VERCEL_APP_URL=https://your-app.vercel.app
-   ```
-
-3. **Run Setup Script**
-   ```bash
-   # Python version
-   cd elevenlabs
-   python setup_agent.py
-
-   # Node.js version
-   cd elevenlabs
-   node setup_agent.js
-   ```
-
-### Voice Interactions Examples
-
-Users can now ask natural questions like:
-
-- **"What movies are playing tonight?"**
-  - → Searches today's evening showtimes
-- **"When is The Substance showing?"**
-  - → Finds all showtimes for that specific movie
-- **"Any afternoon shows tomorrow?"**
-  - → Filters tomorrow's afternoon (12-5 PM) showtimes
-- **"What's playing this weekend?"**
-  - → Shows Friday-Sunday showtimes
-
-### Agent Configuration
-
-The ElevenLabs agent is configured with:
-
-- **Webhook Tool**: Connects directly to your `/api/showtimes` endpoint
-- **Smart Parameters**: Automatically maps voice queries to API parameters
-- **Voice-Optimized Responses**: Natural language summaries for TTS
-- **Conversational Flow**: Handles follow-up questions and clarifications
-
-### Response Format
-
-The API now returns voice-optimized responses:
-
-```json
-{
-  "success": true,
-  "data": [...],
-  "conversational_summary": "I found 3 showtimes for today. The Substance is showing today at 2 PM at O Cinema South Beach. Anora is showing today at 5 PM at O Cinema South Beach...",
-  "query_info": {
-    "results_count": 3
-  }
-}
-```
-
-### Advanced Configuration
-
-#### Custom Voice Settings
-```javascript
-// Configure in ElevenLabs dashboard
-{
-  "voice_id": "your-preferred-voice-id",
-  "voice_settings": {
-    "stability": 0.75,
-    "similarity_boost": 0.85,
-    "style": 0.2
-  }
-}
-```
-
-#### Authentication (Optional)
-```javascript
-// Add to webhook tool configuration
-"request_headers": {
-  "Authorization": "Bearer YOUR_API_TOKEN",
-  "Content-Type": "application/json"
-}
-```
-
-### File Structure
-
-```
-elevenlabs/
-├── webhook-tool-config.json    # Tool configuration
-├── setup_agent.py              # Python setup script
-├── setup_agent.js              # Node.js setup script
-├── requirements.txt            # Python dependencies
-├── package.json               # Node.js dependencies
-└── agent_config.json          # Generated config (after setup)
-```
-
-### Troubleshooting
-
-**Common Issues:**
-
-1. **"Tool creation failed"**
-   - Verify `ELEVENLABS_API_KEY` is set correctly
-   - Check your ElevenLabs subscription limits
-
-2. **"Agent can't reach API"**
-   - Ensure `VERCEL_APP_URL` points to your deployed app
-   - Verify CORS headers are enabled (they are by default)
-
-3. **"Voice responses sound unnatural"**
-   - Check the `conversational_summary` field in API responses
-   - Adjust voice settings in ElevenLabs dashboard
-
-**Getting Help:**
-- View agent logs in ElevenLabs dashboard
-- Test API endpoints directly: `curl "your-app.vercel.app/api/showtimes?day_type=today"`
-- Check Vercel function logs: `vercel logs`
 
 ## Contributing
 
