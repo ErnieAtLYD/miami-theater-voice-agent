@@ -19,6 +19,7 @@ This is a Vercel-hosted voice agent API for Miami theater showtimes, designed to
 
 **API Endpoints:**
 - `api/showtimes.js` - Main query endpoint for voice agent integration
+- `api/send-message.js` - Message forwarding endpoint for customer inquiries
 - `api/cron/ingest-showtimes.js` - Automated data ingestion (runs every 30 minutes)
 
 **Data Flow:**
@@ -50,6 +51,10 @@ Required for production:
 - Upstash Redis credentials:
   - `UPSTASH_REDIS_REST_URL` or `KV_REST_API_URL` - Redis connection URL
   - `UPSTASH_REDIS_REST_TOKEN` or `KV_REST_API_TOKEN` - Redis authentication token
+- Email service (Resend):
+  - `RESEND_API_KEY` - Resend API authentication key
+  - `OCINEMA_EMAIL` - Target email address for customer messages
+  - `RESEND_FROM_EMAIL` - (Optional) Sender email address (defaults to onboarding@resend.dev)
 
 ### Voice Agent Integration
 
@@ -62,6 +67,40 @@ The API is specifically designed for ElevenLabs voice agents:
 ### Cron Job Security
 
 The ingestion endpoint uses bearer token authentication and should only be called by Vercel's cron system.
+
+### Message Forwarding
+
+The `/api/send-message` endpoint enables voice agent users to leave messages for O Cinema staff:
+
+**Request Format (POST):**
+```javascript
+{
+  "caller_name": "John Doe",          // Optional
+  "caller_phone": "(305) 555-1234",   // Optional
+  "message": "I'd like to inquire about group bookings",
+  "context": "Asking about showtimes" // Optional - what they were doing before
+}
+```
+
+**Response Format:**
+```javascript
+{
+  "success": true,
+  "email_id": "abc123",
+  "conversational_response": "Thank you, John. Your message has been sent to O Cinema's team...",
+  "message_info": {
+    "sent_at": "Monday, January 15, 2024, 3:30 PM",
+    "caller_name": "John Doe",
+    "has_phone": true
+  }
+}
+```
+
+**Email Integration:**
+- Uses Resend for reliable email delivery
+- Formatted HTML emails with caller details and timestamp
+- Automatic reply-to configuration when phone provided
+- Professional formatting for staff review
 
 ## Technical Implementation Details
 
