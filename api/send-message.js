@@ -8,6 +8,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
+  const escapeHtml = (unsafe) => unsafe.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -80,14 +82,14 @@ export default async function handler(req, res) {
 
         <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
           <p style="margin: 10px 0;"><strong>Received:</strong> ${timestamp} (ET)</p>
-          ${caller_name ? `<p style="margin: 10px 0;"><strong>Caller Name:</strong> ${caller_name}</p>` : ''}
-          ${caller_phone ? `<p style="margin: 10px 0;"><strong>Phone Number:</strong> ${caller_phone}</p>` : ''}
-          ${context ? `<p style="margin: 10px 0;"><strong>Context:</strong> ${context}</p>` : ''}
+          ${caller_name ? `<p style="margin: 10px 0;"><strong>Caller Name:</strong> ${escapeHtml(caller_name)}</p>` : ''}
+          ${caller_phone ? `<p style="margin: 10px 0;"><strong>Phone Number:</strong> ${escapeHtml(caller_phone)}</p>` : ''}
+          ${context ? `<p style="margin: 10px 0;"><strong>Context:</strong> ${escapeHtml(context)}</p>` : ''}
         </div>
 
         <div style="background-color: #fff; padding: 20px; border-left: 4px solid #0066cc; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #0066cc;">Message:</h3>
-          <p style="white-space: pre-wrap; line-height: 1.6;">${message}</p>
+          <p style="white-space: pre-wrap; line-height: 1.6;">${escapeHtml(message)}</p>
         </div>
 
         <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
@@ -120,7 +122,7 @@ This message was automatically sent by the O Cinema Voice Agent system.
       subject: emailSubject,
       html: emailHtml,
       text: emailText,
-      replyTo: caller_phone ? undefined : targetEmail, // Don't set reply-to if we don't have caller contact
+      replyTo: caller_phone || undefined, // Don't set reply-to if we don't have caller contact
     });
 
     if (error) {
