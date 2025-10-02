@@ -72,6 +72,11 @@ The ingestion endpoint uses bearer token authentication and should only be calle
 
 The `/api/send-message` endpoint enables voice agent users to leave messages for O Cinema staff:
 
+**IMPORTANT:** This endpoint requires a separate webhook tool configuration in ElevenLabs. The current setup scripts (`setup_agent.py` and `setup_agent.js`) only create the `Miami-Theater-Showtimes` tool. You must manually create a second webhook tool named `Send-Message-To-Cinema` in the ElevenLabs dashboard with:
+- URL: `{VERCEL_URL}/api/send-message`
+- Method: POST
+- Body schema with parameters: `caller_name`, `caller_phone`, `message`, `context`
+
 **Request Format (POST):**
 ```javascript
 {
@@ -162,6 +167,8 @@ export default async function handler(req, res) {
 ### ElevenLabs Voice Agent Integration
 
 The API is optimized for ElevenLabs conversational AI:
+
+**Current Limitations:** The ElevenLabs setup scripts in `/elevenlabs/` only configure the showtimes query tool. The message forwarding functionality (`/api/send-message`) is documented but not yet integrated into the automated setup. Manual configuration required in ElevenLabs dashboard.
 
 **Response Format:**
 ```javascript

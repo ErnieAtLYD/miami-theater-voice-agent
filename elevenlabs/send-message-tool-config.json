@@ -1,0 +1,64 @@
+{
+  "tool_config": {
+    "type": "webhook",
+    "name": "Send-Message-To-Cinema",
+    "description": "Send a message from the caller to O Cinema staff via email. Use this when the caller wants to leave a message, ask a question that requires staff follow-up, inquire about group bookings, private screenings, or anything that needs human attention from the theater.",
+    "response_timeout_secs": 10,
+    "disable_interruptions": false,
+    "force_pre_tool_speech": false,
+    "api_schema": {
+      "url": "https://miami-theater-voice-agent.vercel.app/api/send-message",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "message_data",
+        "type": "object",
+        "description": "Information about the message to send to O Cinema staff",
+        "required": true,
+        "properties": [
+          {
+            "id": "message",
+            "type": "string",
+            "description": "The actual message content from the caller. This is what the caller wants to tell O Cinema staff.",
+            "required": true,
+            "value_type": "llm_prompt"
+          },
+          {
+            "id": "caller_name",
+            "type": "string",
+            "description": "The name of the person calling, if provided. Ask the caller for their name before sending the message.",
+            "required": false,
+            "value_type": "llm_prompt"
+          },
+          {
+            "id": "caller_phone",
+            "type": "string",
+            "description": "The caller's phone number if they want to be contacted back. Format as provided by caller (e.g., '(305) 555-1234' or '305-555-1234').",
+            "required": false,
+            "value_type": "llm_prompt"
+          },
+          {
+            "id": "context",
+            "type": "string",
+            "description": "Brief context about what the caller was asking about before leaving the message (e.g., 'Inquiring about The Substance showtimes', 'Asking about weekend shows'). This helps staff understand the conversation context.",
+            "required": false,
+            "value_type": "llm_prompt"
+          }
+        ]
+      },
+      "request_headers": [
+        {
+          "type": "value",
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "type": "value",
+          "name": "User-Agent",
+          "value": "ElevenLabs-Agent/1.0"
+        }
+      ]
+    }
+  }
+}
