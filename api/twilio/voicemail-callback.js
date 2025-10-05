@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   // Validate Twilio webhook signature
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const twilioSignature = req.headers['x-twilio-signature'];
-  const url = escapeHtml(`https://${req.headers.host}${req.url}`) || '';
+  const url = `https://${req.headers.host}${req.url}`;
 
   if (!authToken) {
     console.error('TWILIO_AUTH_TOKEN not configured');

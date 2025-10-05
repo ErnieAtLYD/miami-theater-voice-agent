@@ -2,7 +2,7 @@
 // Handles transcription completion and updates voicemail record
 import { Redis } from '@upstash/redis';
 import twilio from 'twilio';
-import { escapeHtml, sendVoicemailEmail } from '../utils/voicemail-email.js';
+import { sendVoicemailEmail } from '../utils/voicemail-email.js';
 
 /**
  * Handles transcription updates from Twilio
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   // Validate Twilio webhook signature
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const twilioSignature = req.headers['x-twilio-signature'];
-  const url = escapeHtml(`https://${req.headers.host}${req.url}`) || '';  
+  const url = `https://${req.headers.host}${req.url}`; 
 
   if (!process.env.RESEND_API_KEY) {
     throw new Error('RESEND_API_KEY not configured');
