@@ -20,19 +20,47 @@ This is a Vercel-hosted voice agent API for Miami theater showtimes, designed to
 **API Endpoints:**
 - `api/showtimes.js` - Main query endpoint for voice agent integration
 - `api/cron/ingest-showtimes.js` - Automated data ingestion (runs every 30 minutes)
+- `api/twilio/voicemail.js` - Twilio TwiML endpoint for voicemail recording
+- `api/twilio/voicemail-callback.js` - Handles completed recordings and notifications
+- `api/twilio/voicemail-transcription.js` - Processes transcription results
+- `api/twilio/recording-status.js` - Handles recording status updates
+- `api/voicemail/list.js` - Staff dashboard for viewing voicemails
 
 **Data Flow:**
+
+*Showtimes System:*
 1. Cron job fetches from Agile WebSales API every 30 minutes
 2. Raw theater data is processed and cached in Upstash
 3. Voice agent queries the processed data through various filters
 
+*Voicemail System:*
+1. Caller requests to leave message via ElevenLabs agent
+2. Agent invokes "Leave-Voicemail" tool (webhook)
+3. Call transfers to Twilio voicemail endpoint
+4. Twilio records message (up to 3 minutes) and transcribes
+5. Recording completed → callback stores in Redis
+6. Email notification sent to staff via Resend
+7. Transcription complete → second email with text
+8. Staff accesses via dashboard at `/api/voicemail/list`
+
 ### Data Structure
 
+**Showtimes Data:**
 The application transforms Agile WebSales data into optimized structures:
 - `movies` - Array of all available movies with showtimes
 - `by_date` - Hash map for date-based queries
 - `weekend` - Pre-filtered Friday/Saturday/Sunday showtimes
 - `upcoming` - Next 7 days of showtimes
+
+**Voicemail Data:**
+Stored in Redis with the following structure:
+- `voicemails:index` - Sorted set of voicemail IDs by timestamp
+- `voicemail:{RecordingSid}` - Individual voicemail records containing:
+  - Recording URL and duration
+  - Caller information (from, to, callSid)
+  - Transcription text (when available)
+  - Status and timestamps
+  - Listen status (listened/unlistened)
 
 ### Query Parameters
 
@@ -44,12 +72,19 @@ The showtimes API supports:
 
 ### Environment Variables
 
-Required for production:
+**Required for production:**
 - `CRON_SECRET` - Secures the cron endpoint
 - `AGILE_GUID` - Agile WebSales API identifier
 - Upstash Redis credentials:
   - `UPSTASH_REDIS_REST_URL` or `KV_REST_API_URL` - Redis connection URL
   - `UPSTASH_REDIS_REST_TOKEN` or `KV_REST_API_TOKEN` - Redis authentication token
+
+**Required for voicemail system:**
+- `TWILIO_ACCOUNT_SID` - Twilio account identifier
+- `TWILIO_AUTH_TOKEN` - Twilio authentication token
+- `RESEND_API_KEY` - Resend API key for email notifications
+- `STAFF_EMAIL` - Email address to receive voicemail notifications
+- `FROM_EMAIL` - Sender email address (optional, defaults to onboarding@resend.dev)
 
 ### Voice Agent Integration
 
@@ -58,6 +93,29 @@ The API is specifically designed for ElevenLabs voice agents:
 - Data formatted with human-readable summaries for text-to-speech
 - Time formatting optimized for voice pronunciation
 - Structured responses with summary fields for natural conversation
+
+### Voicemail Integration
+
+The voicemail system integrates ElevenLabs conversational AI with Twilio recording:
+
+**ElevenLabs Tool Configuration:**
+- Tool type: Webhook
+- Tool name: "Leave-Voicemail"
+- Invoked when: Caller wants to speak to staff or leave a message
+- Tool configuration: `elevenlabs/voicemail-tool-config.json`
+
+**Twilio Recording Features:**
+- Maximum recording length: 3 minutes (180 seconds)
+- Transcription: Automatic via Twilio
+- Finish key: `*` (star key)
+- Audio format: WAV/MP3 available
+- Callbacks: Recording status, completion, and transcription
+
+**Staff Notification System:**
+- Email notifications via Resend
+- Immediate notification with recording link
+- Follow-up email with transcription (when ready)
+- Dashboard access at `/api/voicemail/list`
 
 ### Cron Job Security
 
@@ -144,6 +202,55 @@ The API is optimized for ElevenLabs conversational AI:
 - Time parsing optimized for voice pronunciation
 - Summary fields provide context for conversational flow
 - CORS enabled for cross-origin voice agent requests
+
+### Twilio Voicemail Integration
+
+The application uses [twilio](https://github.com/twilio/twilio-node) for TwiML generation and voicemail recording:
+
+```javascript
+import twilio from 'twilio';
+const { twiml } = twilio;
+
+const voiceResponse = new twiml.VoiceResponse();
+voiceResponse.say('Please leave a message after the beep.');
+voiceResponse.record({
+  maxLength: 180,
+  finishOnKey: '*',
+  transcribe: true,
+  transcribeCallback: '/api/twilio/voicemail-transcription',
+  action: '/api/twilio/voicemail-callback'
+});
+```
+
+**Recording Workflow:**
+1. ElevenLabs agent invokes Leave-Voicemail tool
+2. `/api/twilio/voicemail` returns TwiML with `<Record>` verb
+3. Twilio records caller's message and generates transcription
+4. Recording complete → POST to `/api/twilio/voicemail-callback`
+5. Callback stores voicemail in Redis sorted set
+6. Resend email sent to staff with recording link
+7. Transcription complete → POST to `/api/twilio/voicemail-transcription`
+8. Voicemail record updated with transcription text
+9. Second email sent with full transcription
+
+**Voicemail Storage Structure:**
+```javascript
+{
+  id: "RExxxxx",                    // Twilio RecordingSid
+  recordingUrl: "https://...",      // Audio file URL
+  duration: 45,                     // Duration in seconds
+  from: "+1234567890",              // Caller's phone number
+  transcription: "Hello, I...",     // Transcription text
+  createdAt: "2024-01-15T...",      // ISO timestamp
+  listened: false                    // Staff listen status
+}
+```
+
+**Staff Dashboard:**
+- Access: `/api/voicemail/list`
+- Features: Listen to recordings, view transcriptions, download MP3s
+- Data source: Redis sorted set `voicemails:index`
+- Display: HTML UI with responsive design or JSON API
 
 ### Development Workflow
 

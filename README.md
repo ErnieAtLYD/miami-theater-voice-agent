@@ -10,6 +10,9 @@ A voice agent API for O Cinema Miami theater showtimes that fetches data from Ag
 - **Automated Data Ingestion**: Fetches theater data every 30 minutes via scheduled cron job
 - **Voice-Optimized API**: Responses formatted for natural text-to-speech integration
 - **Multiple Query Types**: Support for date, movie title, and time-based searches
+- **Voicemail System**: AI-powered voicemail with Twilio recording and transcription
+- **Email Notifications**: Automatic staff notifications via Resend with recording links and transcriptions
+- **Staff Dashboard**: Beautiful web interface for managing voicemails
 - **High-Performance Caching**: Upstash Redis for sub-second response times
 - **Cross-Origin Ready**: CORS enabled for voice agent platform integration
 - **Production Ready**: Environment-based configuration with secure authentication
@@ -64,6 +67,60 @@ curl "https://your-domain.vercel.app/api/showtimes?day_type=weekend&time_prefere
 
 Automated endpoint for data ingestion (secured with bearer token).
 
+### Voicemail System Endpoints
+
+#### POST `/api/twilio/voicemail`
+
+Twilio webhook endpoint that returns TwiML for voicemail recording. Called by ElevenLabs Leave-Voicemail tool.
+
+**Features:**
+- Records up to 3 minutes of audio
+- Automatic transcription via Twilio
+- Caller can press `*` to finish recording
+- Returns TwiML response for Twilio
+
+#### POST `/api/twilio/voicemail-callback`
+
+Handles completed voicemail recordings from Twilio.
+
+**Actions:**
+- Stores voicemail metadata in Redis
+- Sends email notification to staff
+- Returns TwiML confirmation message
+
+#### POST `/api/twilio/voicemail-transcription`
+
+Processes transcription results from Twilio.
+
+**Actions:**
+- Updates voicemail record with transcription text
+- Sends follow-up email with transcription
+
+#### GET `/api/voicemail/list`
+
+Staff dashboard for viewing and managing voicemails.
+
+**Query Parameters:**
+- `limit` - Number of voicemails to return (default: 50)
+- `offset` - Pagination offset (default: 0)
+- `unlistened_only` - Filter to unlistened messages (true/false)
+
+**Response Format:**
+- Browser: Beautiful HTML dashboard
+- API: JSON array of voicemail objects
+
+**Example:**
+```bash
+# View dashboard in browser
+open https://your-domain.vercel.app/api/voicemail/list
+
+# Get JSON data
+curl "https://your-domain.vercel.app/api/voicemail/list"
+
+# Filter unlistened only
+curl "https://your-domain.vercel.app/api/voicemail/list?unlistened_only=true"
+```
+
 ## ElevenLabs Voice Agent Integration
 
 This API is optimized for ElevenLabs Conversational AI, enabling natural voice queries about Miami theater showtimes.
@@ -94,11 +151,18 @@ This API is optimized for ElevenLabs Conversational AI, enabling natural voice q
 
 ### Voice Interactions
 
+**Showtime Queries:**
 Users can ask natural questions like:
 - *"What movies are playing tonight?"* → Today's evening showtimes
 - *"When is The Substance showing?"* → All showtimes for that movie
 - *"Any afternoon shows tomorrow?"* → Tomorrow's 12-5 PM showtimes
 - *"What's playing this weekend?"* → Friday-Sunday showtimes
+
+**Voicemail System:**
+Callers can also:
+- *"I'd like to speak to someone"* → Agent transfers to voicemail
+- *"Can I leave a message?"* → Agent initiates voicemail recording
+- *"I have a question about tickets"* → Agent offers to take a message
 
 The API returns voice-optimized responses with conversational summaries for natural text-to-speech.
 
@@ -137,6 +201,16 @@ UPSTASH_REDIS_REST_TOKEN=your-redis-rest-token
 
 # Cron Job Security
 CRON_SECRET=your-secure-random-string
+
+# Voicemail System (optional - required for voicemail functionality)
+TWILIO_ACCOUNT_SID=your-twilio-account-sid
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+RESEND_API_KEY=your-resend-api-key
+STAFF_EMAIL=staff@ocinema.org
+FROM_EMAIL=O Cinema Voicemail <noreply@ocinema.org>
+
+# Staff Dashboard Authentication (required for voicemail dashboard access)
+STAFF_DASHBOARD_SECRET=your-secure-random-string-at-least-32-chars
 ```
 
 **Redis Setup Options (choose one):**
@@ -183,6 +257,14 @@ vercel env add UPSTASH_REDIS_REST_TOKEN
 
 # For Vercel KV (alternative - provision via Vercel dashboard instead)
 
+# Add voicemail system credentials (if using voicemail feature)
+vercel env add TWILIO_ACCOUNT_SID
+vercel env add TWILIO_AUTH_TOKEN
+vercel env add RESEND_API_KEY
+vercel env add STAFF_EMAIL
+vercel env add FROM_EMAIL
+vercel env add STAFF_DASHBOARD_SECRET  # REQUIRED for security
+
 # Deploy updates
 vercel --prod
 ```
@@ -192,6 +274,69 @@ vercel --prod
 - Cron jobs automatically scheduled via `vercel.json`
 - Environment variables securely managed in dashboard
 - Auto-scaling based on traffic demand
+
+### Voicemail System Setup
+
+**1. Configure Twilio:**
+- Sign up for [Twilio](https://www.twilio.com) account
+- Copy Account SID and Auth Token to environment variables
+- Note: You don't need a Twilio phone number for this setup (ElevenLabs handles the call)
+
+**2. Configure Email (Resend):**
+- Sign up for [Resend](https://resend.com) account (100 emails/day free)
+- Create an API key from the dashboard
+- Verify your sender email address or domain
+- Add credentials to environment variables
+- Note: Use format `Name <email@domain.com>` for FROM_EMAIL
+
+**3. Configure ElevenLabs Agent:**
+- Upload `elevenlabs/voicemail-tool-config.json` as a new webhook tool
+- Update the URL to point to your deployed Vercel app
+- Add the tool to your conversational AI agent
+- The agent will now offer voicemail when appropriate
+
+**4. Configure Security (Required):**
+
+Before deploying to production, you **must** configure authentication to secure the voicemail system:
+
+**Generate Staff Dashboard Secret:**
+```bash
+# Generate a secure random string (32+ characters)
+openssl rand -base64 32
+```
+
+**Add to Vercel Environment Variables:**
+```bash
+# Via Vercel CLI
+vercel env add STAFF_DASHBOARD_SECRET
+
+# Or add via Vercel Dashboard:
+# Settings → Environment Variables → Add New
+# Name: STAFF_DASHBOARD_SECRET
+# Value: [paste generated token]
+```
+
+**Important Security Notes:**
+- `STAFF_DASHBOARD_SECRET` is **required** for dashboard access
+- `TWILIO_AUTH_TOKEN` validates webhook authenticity (prevents forged requests)
+- All Twilio webhooks are protected with signature validation
+- Staff dashboard requires bearer token authentication
+
+**Test Security Implementation:**
+```bash
+# Dashboard should reject requests without auth token (returns 401)
+curl https://your-app.vercel.app/api/voicemail/list
+
+# Access with valid token (returns voicemail list)
+curl -H "Authorization: Bearer YOUR_STAFF_DASHBOARD_SECRET" \
+  https://your-app.vercel.app/api/voicemail/list
+```
+
+**5. Access Staff Dashboard:**
+- Navigate to `https://your-app.vercel.app/api/voicemail/list`
+- Provide the bearer token when prompted (use browser extension or API client)
+- View all voicemails, listen to recordings, and read transcriptions
+- Bookmark for easy staff access
 
 ## Architecture
 
@@ -206,11 +351,22 @@ Built on **Vercel's serverless platform** with automatic scaling:
 
 ### Data Flow
 
+**Showtimes System:**
 1. **Scheduled Ingestion**: Vercel Cron triggers `/api/cron/ingest-showtimes` every 30 minutes
 2. **Data Fetching**: Serverless function pulls fresh data from Agile WebSales API
 3. **Data Processing**: Raw theater data transformed into voice-optimized structures
 4. **Redis Caching**: Processed data stored in Upstash Redis with 2-hour TTL
 5. **API Serving**: `/api/showtimes` function serves cached data to voice agents
+
+**Voicemail System:**
+1. **Call Initiation**: Caller asks ElevenLabs agent to leave a message
+2. **Tool Invocation**: Agent calls Leave-Voicemail webhook tool
+3. **TwiML Generation**: `/api/twilio/voicemail` returns recording instructions
+4. **Recording**: Twilio records caller's message (up to 3 minutes)
+5. **Transcription**: Twilio generates automatic transcription
+6. **Storage**: Voicemail stored in Redis with timestamp indexing
+7. **Notification**: Staff receives email via Resend with recording link
+8. **Dashboard Access**: Staff can review voicemails at `/api/voicemail/list`
 
 ### Data Structure & Caching
 
@@ -226,12 +382,21 @@ const redis = new Redis({
 
 **Optimized data structures for fast queries:**
 
+*Showtimes:*
 - `showtimes:current` - Complete processed dataset with 2-hour TTL
 - `movies` - Array of all available movies with showtimes
 - `by_date` - Hash map for date-based lookups
 - `weekend` - Pre-filtered Friday/Saturday/Sunday showtimes
 - `upcoming` - Next 7 days of showtimes
 - `showtimes:last_updated` - Timestamp for cache freshness tracking
+
+*Voicemails:*
+- `voicemails:index` - Sorted set of voicemail IDs by timestamp
+- `voicemail:{RecordingSid}` - Individual voicemail records with:
+  - Recording URL and duration
+  - Caller phone number
+  - Transcription text
+  - Timestamps and status
 
 ### Voice Agent Integration
 

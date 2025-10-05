@@ -1,0 +1,31 @@
+{
+  "tool_config": {
+    "type": "webhook",
+    "name": "Leave-Voicemail",
+    "description": "Transfer the caller to voicemail when they want to leave a message for O Cinema staff. Use this when the caller asks to speak to someone, leave a message, or when you cannot help them with their inquiry.",
+    "response_timeout_secs": 10,
+    "disable_interruptions": true,
+    "force_pre_tool_speech": true,
+    "api_schema": {
+      "url": "https://miami-theater-voice-agent.vercel.app/api/twilio/voicemail",
+      "method": "POST",
+      "request_body_schema": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Brief reason why the caller is leaving a voicemail (e.g., 'wants to speak to manager', 'has a question about tickets', 'general inquiry')"
+          },
+          "caller_context": {
+            "type": "string",
+            "description": "Any relevant context from the conversation that staff should know"
+          }
+        },
+        "required": ["reason"]
+      },
+      "request_headers": {
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}
