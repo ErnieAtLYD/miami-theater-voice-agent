@@ -3,9 +3,24 @@
 import { Redis } from '@upstash/redis';
 
 /**
- * 
- * @param {*} req 
- * @param {*} res 
+ * Escapes HTML special characters to prevent XSS attacks
+ * @param {string} unsafe - The unsafe string to escape
+ * @returns {string} The HTML-escaped string
+ */
+function escapeHtml(unsafe) {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
+ * Retrieves and displays voicemail list for staff
+ * @param {*} req
+ * @param {*} res
  * @returns {Promise<void>}
  */
 export default async function handler(req, res) {
@@ -20,6 +35,19 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Authenticate staff access
+  const authHeader = req.headers.authorization;
+  const expectedToken = `Bearer ${process.env.STAFF_DASHBOARD_SECRET}`;
+
+  if (!process.env.STAFF_DASHBOARD_SECRET) {
+    console.error('STAFF_DASHBOARD_SECRET not configured');
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  if (!authHeader || authHeader !== expectedToken) {
+    return res.status(401).json({ error: 'Unauthorized - Invalid credentials' });
   }
 
   try {
@@ -286,22 +314,22 @@ function generateHTMLView(voicemails, total) {
             <div class="caller-info">
               <div class="caller-avatar">📞</div>
               <div class="caller-details">
-                <h3>${vm.from || 'Unknown Caller'}</h3>
-                <p>${new Date(vm.createdAt).toLocaleString()}</p>
+                <h3>${escapeHtml(vm.from) || 'Unknown Caller'}</h3>
+                <p>${escapeHtml(new Date(vm.createdAt).toLocaleString())}</p>
               </div>
             </div>
-            <span class="duration-badge">${vm.duration}s</span>
+            <span class="duration-badge">${escapeHtml(String(vm.duration))}s</span>
           </div>
 
           ${vm.transcription ? `
             <div class="transcription">
-              "${vm.transcription}"
+              "${escapeHtml(vm.transcription)}"
             </div>
           ` : '<p style="color: #999; font-style: italic;">Transcription pending...</p>'}
 
           <div class="actions">
-            <a href="${vm.recordingUrl}" class="btn btn-primary" target="_blank">🎧 Listen to Recording</a>
-            ${vm.recordingUrl ? `<a href="${vm.recordingUrl}.mp3" class="btn btn-secondary" download>⬇️ Download MP3</a>` : ''}
+            <a href="${escapeHtml(vm.recordingUrl)}" class="btn btn-primary" target="_blank">🎧 Listen to Recording</a>
+            ${vm.recordingUrl ? `<a href="${escapeHtml(vm.recordingUrl)}.mp3" class="btn btn-secondary" download>⬇️ Download MP3</a>` : ''}
           </div>
         </div>
       `).join('')}

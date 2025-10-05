@@ -11,6 +11,9 @@ const { twiml } = twilio;
  * @returns {Promise<void>}
  */
 export default async function handler(req, res) {
+
+  const baseUrl = process.env.VERCEL_URL;
+  
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

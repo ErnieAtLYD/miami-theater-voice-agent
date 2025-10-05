@@ -1,6 +1,22 @@
 // api/twilio/voicemail-transcription.js
 // Handles transcription completion and updates voicemail record
 import { Redis } from '@upstash/redis';
+import twilio from 'twilio';
+
+/**
+ * Escapes HTML special characters to prevent XSS attacks
+ * @param {string} unsafe - The unsafe string to escape
+ * @returns {string} The HTML-escaped string
+ */
+function escapeHtml(unsafe) {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 /**
  * Handles transcription updates from Twilio
@@ -11,6 +27,28 @@ import { Redis } from '@upstash/redis';
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Validate Twilio webhook signature
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const twilioSignature = req.headers['x-twilio-signature'];
+  const url = `https://${req.headers.host}${req.url}`;
+
+  if (!authToken) {
+    console.error('TWILIO_AUTH_TOKEN not configured');
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  const isValidRequest = twilio.validateRequest(
+    authToken,
+    twilioSignature,
+    url,
+    req.body
+  );
+
+  if (!isValidRequest) {
+    console.error('Invalid Twilio signature');
+    return res.status(403).json({ error: 'Forbidden - Invalid signature' });
   }
 
   try {
@@ -89,17 +127,17 @@ async function sendTranscriptionEmail(voicemail) {
   const emailData = {
     from: process.env.FROM_EMAIL || 'O Cinema Voicemail <onboarding@resend.dev>',
     to: process.env.STAFF_EMAIL,
-    subject: `Voicemail Transcription from ${voicemail.from}`,
+    subject: `Voicemail Transcription from ${escapeHtml(voicemail.from)}`,
     html: `
       <h2>Voicemail Transcription Available</h2>
-      <p><strong>From:</strong> ${voicemail.from}</p>
+      <p><strong>From:</strong> ${escapeHtml(voicemail.from)}</p>
       <p><strong>Duration:</strong> ${voicemail.duration} seconds</p>
-      <p><strong>Received:</strong> ${new Date(voicemail.createdAt).toLocaleString()}</p>
+      <p><strong>Received:</strong> ${escapeHtml(new Date(voicemail.createdAt).toLocaleString())}</p>
       <hr/>
       <h3>Transcription:</h3>
-      <p>${voicemail.transcription}</p>
+      <p>${escapeHtml(voicemail.transcription)}</p>
       <hr/>
-      <p><strong>Recording:</strong> <a href="${voicemail.recordingUrl}">Listen to Recording</a></p>
+      <p><strong>Recording:</strong> <a href="${escapeHtml(voicemail.recordingUrl)}">Listen to Recording</a></p>
     `
   };
 

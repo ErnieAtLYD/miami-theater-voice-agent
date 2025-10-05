@@ -208,6 +208,9 @@ TWILIO_AUTH_TOKEN=your-twilio-auth-token
 RESEND_API_KEY=your-resend-api-key
 STAFF_EMAIL=staff@ocinema.org
 FROM_EMAIL=O Cinema Voicemail <noreply@ocinema.org>
+
+# Staff Dashboard Authentication (required for voicemail dashboard access)
+STAFF_DASHBOARD_SECRET=your-secure-random-string-at-least-32-chars
 ```
 
 **Redis Setup Options (choose one):**
@@ -254,6 +257,14 @@ vercel env add UPSTASH_REDIS_REST_TOKEN
 
 # For Vercel KV (alternative - provision via Vercel dashboard instead)
 
+# Add voicemail system credentials (if using voicemail feature)
+vercel env add TWILIO_ACCOUNT_SID
+vercel env add TWILIO_AUTH_TOKEN
+vercel env add RESEND_API_KEY
+vercel env add STAFF_EMAIL
+vercel env add FROM_EMAIL
+vercel env add STAFF_DASHBOARD_SECRET  # REQUIRED for security
+
 # Deploy updates
 vercel --prod
 ```
@@ -284,8 +295,46 @@ vercel --prod
 - Add the tool to your conversational AI agent
 - The agent will now offer voicemail when appropriate
 
-**4. Access Staff Dashboard:**
+**4. Configure Security (Required):**
+
+Before deploying to production, you **must** configure authentication to secure the voicemail system:
+
+**Generate Staff Dashboard Secret:**
+```bash
+# Generate a secure random string (32+ characters)
+openssl rand -base64 32
+```
+
+**Add to Vercel Environment Variables:**
+```bash
+# Via Vercel CLI
+vercel env add STAFF_DASHBOARD_SECRET
+
+# Or add via Vercel Dashboard:
+# Settings → Environment Variables → Add New
+# Name: STAFF_DASHBOARD_SECRET
+# Value: [paste generated token]
+```
+
+**Important Security Notes:**
+- `STAFF_DASHBOARD_SECRET` is **required** for dashboard access
+- `TWILIO_AUTH_TOKEN` validates webhook authenticity (prevents forged requests)
+- All Twilio webhooks are protected with signature validation
+- Staff dashboard requires bearer token authentication
+
+**Test Security Implementation:**
+```bash
+# Dashboard should reject requests without auth token (returns 401)
+curl https://your-app.vercel.app/api/voicemail/list
+
+# Access with valid token (returns voicemail list)
+curl -H "Authorization: Bearer YOUR_STAFF_DASHBOARD_SECRET" \
+  https://your-app.vercel.app/api/voicemail/list
+```
+
+**5. Access Staff Dashboard:**
 - Navigate to `https://your-app.vercel.app/api/voicemail/list`
+- Provide the bearer token when prompted (use browser extension or API client)
 - View all voicemails, listen to recordings, and read transcriptions
 - Bookmark for easy staff access
 

@@ -1,6 +1,7 @@
 // api/twilio/recording-status.js
 // Handles recording status updates from Twilio
 import { Redis } from '@upstash/redis';
+import twilio from 'twilio';
 
 /**
  * Handles recording status updates from Twilio
@@ -13,7 +14,29 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  try {
+  // Validate Twilio webhook signature
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const twilioSignature = req.headers['x-twilio-signature'];
+  const url = `https://${req.headers.host}${req.url}`;
+
+  if (!authToken) {
+    console.error('TWILIO_AUTH_TOKEN not configured');
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  const isValidRequest = twilio.validateRequest(
+    authToken,
+    twilioSignature,
+    url,
+    req.body
+  );
+
+  if (!isValidRequest) {
+    console.error('Invalid Twilio signature');
+    return res.status(403).json({ error: 'Forbidden - Invalid signature' });
+  }
+
+  try{
     // Initialize Redis
     const redis = new Redis({
       url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,

@@ -1,10 +1,48 @@
 // api/twilio/voicemail-callback.js
 // Handles recording completion and sends notifications
 import { Redis } from '@upstash/redis';
+import twilio from 'twilio';
+
+/**
+ * Escapes HTML special characters to prevent XSS attacks
+ * @param {string} unsafe - The unsafe string to escape
+ * @returns {string} The HTML-escaped string
+ */
+function escapeHtml(unsafe) {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Validate Twilio webhook signature
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const twilioSignature = req.headers['x-twilio-signature'];
+  const url = `https://${req.headers.host}${req.url}`;
+
+  if (!authToken) {
+    console.error('TWILIO_AUTH_TOKEN not configured');
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  const isValidRequest = twilio.validateRequest(
+    authToken,
+    twilioSignature,
+    url,
+    req.body
+  );
+
+  if (!isValidRequest) {
+    console.error('Invalid Twilio signature');
+    return res.status(403).json({ error: 'Forbidden - Invalid signature' });
   }
 
   try {
@@ -108,14 +146,14 @@ async function sendEmailNotification(voicemail) {
   const emailData = {
     from: process.env.FROM_EMAIL || 'O Cinema Voicemail <onboarding@resend.dev>',
     to: process.env.STAFF_EMAIL,
-    subject: `New Voicemail from ${voicemail.from}`,
+    subject: `New Voicemail from ${escapeHtml(voicemail.from)}`,
     html: `
       <h2>New Voicemail Message</h2>
-      <p><strong>From:</strong> ${voicemail.from}</p>
+      <p><strong>From:</strong> ${escapeHtml(voicemail.from)}</p>
       <p><strong>Duration:</strong> ${voicemail.duration} seconds</p>
-      <p><strong>Received:</strong> ${new Date(voicemail.createdAt).toLocaleString()}</p>
-      <p><strong>Recording:</strong> <a href="${voicemail.recordingUrl}">Listen to Recording</a></p>
-      ${voicemail.transcription ? `<p><strong>Transcription:</strong><br/>${voicemail.transcription}</p>` : '<p><em>Transcription pending...</em></p>'}
+      <p><strong>Received:</strong> ${escapeHtml(new Date(voicemail.createdAt).toLocaleString())}</p>
+      <p><strong>Recording:</strong> <a href="${escapeHtml(voicemail.recordingUrl)}">Listen to Recording</a></p>
+      ${voicemail.transcription ? `<p><strong>Transcription:</strong><br/>${escapeHtml(voicemail.transcription)}</p>` : '<p><em>Transcription pending...</em></p>'}
       <hr/>
       <p><small>Access all voicemails at: <a href="https://miami-theater-voice-agent.vercel.app/api/voicemail/list">Voicemail Dashboard</a></small></p>
     `
