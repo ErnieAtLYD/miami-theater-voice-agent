@@ -25,8 +25,10 @@ export default async function handler(req, res) {
   }
 
   // Authenticate staff access
-  const authHeader = req.headers.authorization;
-  const expectedToken = `Bearer ${process.env.STAFF_DASHBOARD_SECRET}`;
+  const authHeader = req.headers.authorization || '';
+  const dashboardSecret = process.env.STAFF_DASHBOARD_SECRET;
+  const expectedToken = Buffer.from(dashboardSecret);
+  const providedToken = Buffer.from(authHeader || '');
 
   if (!process.env.STAFF_DASHBOARD_SECRET) {
     console.error('STAFF_DASHBOARD_SECRET not configured');
@@ -34,13 +36,10 @@ export default async function handler(req, res) {
   }
 
   // Use constant-time comparison to prevent timing attacks
-  const authBuffer = Buffer.from(authHeader || '');
-  const expectedBuffer = Buffer.from(expectedToken);
-
-  if (authBuffer.length !== expectedBuffer.length ||
-      !crypto.timingSafeEqual(authBuffer, expectedBuffer)) {
-    return res.status(401).json({ error: 'Unauthorized - Invalid credentials' });
-  }
+  if (expectedToken.length !== providedToken.length ||
+    !crypto.timingSafeEqual(expectedToken, providedToken)) {
+  return res.status(401).json({ error: 'Unauthorized - Invalid credentials' });
+}
 
   try {
     // Initialize Redis
