@@ -295,6 +295,11 @@ function formatDateForVoice(dateStr) {
 function formatTimeForVoice(timeStr) {
   if (!timeStr) return '';
 
+  // Check if time already has AM/PM (formatted) or is in 24-hour format
+  if (timeStr.includes('AM') || timeStr.includes('PM')) {
+    return timeStr; // Already formatted
+  }
+
   // Convert 24-hour format to more natural speech format
   const [hours, minutes] = timeStr.split(':');
   const hour = parseInt(hours);

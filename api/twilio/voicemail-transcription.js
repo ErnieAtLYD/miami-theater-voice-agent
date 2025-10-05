@@ -87,12 +87,7 @@ export default async function handler(req, res) {
             console.error('Failed to send transcription email:', emailError);
           }
         }
-        if (!process.env.RESEND_API_KEY) {
-          throw new Error('RESEND_API_KEY not configured');
-        }
-        if (!process.env.STAFF_EMAIL) {
-          throw new Error('STAFF_EMAIL not configured');
-        }
+
       
       } else {
         console.warn(`Voicemail ${RecordingSid} not found for transcription update`);
