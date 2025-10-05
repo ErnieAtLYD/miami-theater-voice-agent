@@ -2,21 +2,7 @@
 // Handles recording completion and sends notifications
 import { Redis } from '@upstash/redis';
 import twilio from 'twilio';
-
-/**
- * Escapes HTML special characters to prevent XSS attacks
- * @param {string} unsafe - The unsafe string to escape
- * @returns {string} The HTML-escaped string
- */
-function escapeHtml(unsafe) {
-  if (!unsafe) return '';
-  return String(unsafe)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+import { sendVoicemailEmail } from '../utils/voicemail-email.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -99,7 +85,7 @@ export default async function handler(req, res) {
     // Note: This uses Resend for email delivery
     if (process.env.RESEND_API_KEY && process.env.STAFF_EMAIL) {
       try {
-        await sendEmailNotification(voicemail);
+        await sendVoicemailEmail(voicemail, 'new');
       } catch (emailError) {
         console.error('Failed to send email notification:', emailError);
         // Don't fail the request if email fails
@@ -131,39 +117,4 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/xml');
     return res.status(200).send(errorResponse);
   }
-}
-
-/**
- * Sends an email notification to the staff
- * @param {*} voicemail 
- * @returns {Promise<void>}
- */
-async function sendEmailNotification(voicemail) {
-  // Using Resend API for email delivery
-  const { Resend } = await import('resend');
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
-  const emailData = {
-    from: process.env.FROM_EMAIL || 'O Cinema Voicemail <onboarding@resend.dev>',
-    to: process.env.STAFF_EMAIL,
-    subject: `New Voicemail from ${escapeHtml(voicemail.from)}`,
-    html: `
-      <h2>New Voicemail Message</h2>
-      <p><strong>From:</strong> ${escapeHtml(voicemail.from)}</p>
-      <p><strong>Duration:</strong> ${voicemail.duration} seconds</p>
-      <p><strong>Received:</strong> ${escapeHtml(new Date(voicemail.createdAt).toLocaleString())}</p>
-      <p><strong>Recording:</strong> <a href="${escapeHtml(voicemail.recordingUrl)}">Listen to Recording</a></p>
-      ${voicemail.transcription ? `<p><strong>Transcription:</strong><br/>${escapeHtml(voicemail.transcription)}</p>` : '<p><em>Transcription pending...</em></p>'}
-      <hr/>
-      <p><small>Access all voicemails at: <a href="https://miami-theater-voice-agent.vercel.app/api/voicemail/list">Voicemail Dashboard</a></small></p>
-    `
-  };
-
-  const { data, error } = await resend.emails.send(emailData);
-
-  if (error) {
-    throw new Error(`Resend API error: ${error.message}`);
-  }
-
-  console.log('Email notification sent successfully:', data.id);
 }

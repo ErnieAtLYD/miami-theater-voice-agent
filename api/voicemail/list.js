@@ -1,21 +1,8 @@
 // api/voicemail/list.js
 // Retrieves list of voicemails for staff access
 import { Redis } from '@upstash/redis';
-
-/**
- * Escapes HTML special characters to prevent XSS attacks
- * @param {string} unsafe - The unsafe string to escape
- * @returns {string} The HTML-escaped string
- */
-function escapeHtml(unsafe) {
-  if (!unsafe) return '';
-  return String(unsafe)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+import crypto from 'crypto';
+import { escapeHtml } from '../utils/voicemail-email.js';
 
 /**
  * Retrieves and displays voicemail list for staff
@@ -46,7 +33,12 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
-  if (!authHeader || authHeader !== expectedToken) {
+  // Use constant-time comparison to prevent timing attacks
+  const authBuffer = Buffer.from(authHeader || '');
+  const expectedBuffer = Buffer.from(expectedToken);
+
+  if (authBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(authBuffer, expectedBuffer)) {
     return res.status(401).json({ error: 'Unauthorized - Invalid credentials' });
   }
 
@@ -58,7 +50,9 @@ export default async function handler(req, res) {
     });
 
     // Get query parameters
-    const { limit = 50, offset = 0, unlistened_only } = req.query;
+    const { unlistened_only } = req.query;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
     // Get voicemail IDs from sorted set (most recent first)
     const voicemailIds = await redis.zrange('voicemails:index', offset, offset + parseInt(limit) - 1, {

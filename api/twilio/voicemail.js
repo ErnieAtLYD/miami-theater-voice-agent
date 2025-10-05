@@ -12,7 +12,11 @@ const { twiml } = twilio;
  */
 export default async function handler(req, res) {
 
-  const baseUrl = process.env.VERCEL_URL;
+  // Construct base URL with proper fallback strategy
+  const baseUrl = process.env.BASE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    (req.headers.host ? `https://${req.headers.host}` : null) ||
+    'https://miami-theater-voice-agent.vercel.app'; // Final fallback
   
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -51,14 +55,14 @@ export default async function handler(req, res) {
       // Trim silence from the beginning and end
       trim: 'trim-silence',
       // Callback URL for when recording is complete
-      action: `${req.headers.origin || 'https://miami-theater-voice-agent.vercel.app'}/api/twilio/voicemail-callback`,
+      action: `${baseUrl}/api/twilio/voicemail-callback`,
       method: 'POST',
       // Enable transcription
       transcribe: true,
       // Callback URL for transcription
-      transcribeCallback: `${req.headers.origin || 'https://miami-theater-voice-agent.vercel.app'}/api/twilio/voicemail-transcription`,
+      transcribeCallback: `${baseUrl}/api/twilio/voicemail-transcription`,
       // Recording status callback
-      recordingStatusCallback: `${req.headers.origin || 'https://miami-theater-voice-agent.vercel.app'}/api/twilio/recording-status`,
+      recordingStatusCallback: `${baseUrl}/api/twilio/recording-status`,
       recordingStatusCallbackMethod: 'POST',
       recordingStatusCallbackEvent: ['completed']
     });

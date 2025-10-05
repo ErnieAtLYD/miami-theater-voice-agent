@@ -2,21 +2,7 @@
 // Handles transcription completion and updates voicemail record
 import { Redis } from '@upstash/redis';
 import twilio from 'twilio';
-
-/**
- * Escapes HTML special characters to prevent XSS attacks
- * @param {string} unsafe - The unsafe string to escape
- * @returns {string} The HTML-escaped string
- */
-function escapeHtml(unsafe) {
-  if (!unsafe) return '';
-  return String(unsafe)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+import { sendVoicemailEmail } from '../utils/voicemail-email.js';
 
 /**
  * Handles transcription updates from Twilio
@@ -96,7 +82,7 @@ export default async function handler(req, res) {
         // Optionally send updated email notification with transcription
         if (process.env.RESEND_API_KEY && process.env.STAFF_EMAIL && TranscriptionText) {
           try {
-            await sendTranscriptionEmail(voicemail);
+            await sendVoicemailEmail(voicemail, 'transcription');
           } catch (emailError) {
             console.error('Failed to send transcription email:', emailError);
           }
@@ -112,40 +98,4 @@ export default async function handler(req, res) {
     console.error('Transcription callback error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
-}
-
-/**
- * Sends an email notification to the staff with the transcription
- * @param {*} voicemail 
- * @returns {Promise<void>}
- */
-async function sendTranscriptionEmail(voicemail) {
-  // Using Resend API for email delivery
-  const { Resend } = await import('resend');
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
-  const emailData = {
-    from: process.env.FROM_EMAIL || 'O Cinema Voicemail <onboarding@resend.dev>',
-    to: process.env.STAFF_EMAIL,
-    subject: `Voicemail Transcription from ${escapeHtml(voicemail.from)}`,
-    html: `
-      <h2>Voicemail Transcription Available</h2>
-      <p><strong>From:</strong> ${escapeHtml(voicemail.from)}</p>
-      <p><strong>Duration:</strong> ${voicemail.duration} seconds</p>
-      <p><strong>Received:</strong> ${escapeHtml(new Date(voicemail.createdAt).toLocaleString())}</p>
-      <hr/>
-      <h3>Transcription:</h3>
-      <p>${escapeHtml(voicemail.transcription)}</p>
-      <hr/>
-      <p><strong>Recording:</strong> <a href="${escapeHtml(voicemail.recordingUrl)}">Listen to Recording</a></p>
-    `
-  };
-
-  const { data, error } = await resend.emails.send(emailData);
-
-  if (error) {
-    throw new Error(`Resend API error: ${error.message}`);
-  }
-
-  console.log('Transcription email sent successfully:', data.id);
 }
