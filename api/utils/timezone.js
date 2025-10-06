@@ -24,7 +24,7 @@ export function getEasternTimeISO() {
   const get = (type) => parts.find(p => p.type === type).value;
 
   // Construct ISO string from Eastern Time components
-  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}.${now.getMilliseconds().toString().padStart(3, '0')}Z`;
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
 }
 
 /**
