@@ -1,14 +1,12 @@
 node_modules
 .vercel
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*.local
 .env.development
 .env.test
 .env.production
 coverage/
+
 
 # ElevenLabs agent configuration (contains sensitive IDs)
 elevenlabs/agent_config.json

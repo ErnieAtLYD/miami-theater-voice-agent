@@ -1,6 +1,7 @@
 // api/cron/ingest-showtimes.js
 // This runs every 30 minutes via Vercel Cron
 import { Redis } from '@upstash/redis';
+import { getEasternTimeISO, formatTimeEastern, getEasternTimeDate, getWeekendDay, isUpcoming } from '../utils/timezone.js';
 
 export default async function handler(req, res) {
   // Verify this is a cron request (security)
@@ -42,15 +43,15 @@ export default async function handler(req, res) {
     
     // Cache in Upstash Redis with 2-hour TTL (safety buffer)
     await redis.setex('showtimes:current', 7200, JSON.stringify(processedData));
-    await redis.setex('showtimes:last_updated', 7200, new Date().toISOString());
+    await redis.setex('showtimes:last_updated', 7200, getEasternTimeISO());
     
     console.log(`Successfully cached ${processedData.movies.length} movies with ${processedData.total_showtimes} showtimes`);
     
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       movies_count: processedData.movies.length,
       total_showtimes: processedData.total_showtimes,
-      last_updated: new Date().toISOString(),
+      last_updated: getEasternTimeISO(),
       agile_last_updated: rawData.LastUpdated
     });
     
@@ -68,8 +69,8 @@ function processAgileShowtimeData(rawData) {
     const showtimes = (show.CurrentShowings || []).map(showing => ({
       id: showing.ID,
       date: showing.StartDate?.split('T')[0], // Extract date part
-      time: formatTime(showing.StartDate), // Extract and format time
-      end_time: formatTime(showing.EndDate),
+      time: formatTimeEastern(showing.StartDate), // Extract and format time
+      end_time: formatTimeEastern(showing.EndDate),
       duration: showing.Duration,
       venue: showing.Venue?.Name || 'O Cinema South Beach',
       venue_address: showing.Venue ? 
@@ -107,36 +108,31 @@ function processAgileShowtimeData(rawData) {
   const byWeekend = { friday: [], saturday: [], sunday: [] };
   const upcoming = [];
   let totalShowtimes = 0;
-  
-  const today = new Date();
-  const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-  
+
   movies.forEach(movie => {
     movie.showtimes.forEach(showtime => {
       totalShowtimes++;
       const date = showtime.date;
       if (!date) return; // Skip if no date
-      
-      const showDate = new Date(date);
-      const dayOfWeek = showDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-      
+
       // Create movie+showtime combo for easy rendering
       const movieWithShowtime = {
         ...movie,
         showtime: showtime
       };
-      
+
       // Group by date
       if (!byDate[date]) byDate[date] = [];
       byDate[date].push(movieWithShowtime);
-      
-      // Group weekend shows (Friday, Saturday, Sunday)
-      if (['friday', 'saturday', 'sunday'].includes(dayOfWeek)) {
-        byWeekend[dayOfWeek].push(movieWithShowtime);
+
+      // Group weekend shows (Friday, Saturday, Sunday) using Eastern Time
+      const weekendDay = getWeekendDay(date);
+      if (weekendDay) {
+        byWeekend[weekendDay].push(movieWithShowtime);
       }
-      
-      // Upcoming shows (next 7 days)
-      if (showDate >= today && showDate <= nextWeek) {
+
+      // Upcoming shows (next 7 days) using Eastern Time
+      if (isUpcoming(date, 7)) {
         upcoming.push(movieWithShowtime);
       }
     });
@@ -148,7 +144,7 @@ function processAgileShowtimeData(rawData) {
     weekend: byWeekend,
     upcoming: upcoming,
     total_showtimes: totalShowtimes,
-    last_updated: new Date().toISOString(),
+    last_updated: getEasternTimeISO(),
     agile_last_updated: rawData.LastUpdated,
     source: rawData.SourceLink,
     venue_info: {
@@ -160,16 +156,6 @@ function processAgileShowtimeData(rawData) {
 }
 
 // Helper functions for O Cinema data processing
-function formatTime(dateTimeString) {
-  if (!dateTimeString) return null;
-  const date = new Date(dateTimeString);
-  return date.toLocaleTimeString('en-US', { 
-    hour: 'numeric', 
-    minute: '2-digit',
-    hour12: true 
-  });
-}
-
 function extractRatingFromDescription(description) {
   // O Cinema descriptions don't have standard ratings, so we'll extract if present
   // or default to 'NR' for independent films
