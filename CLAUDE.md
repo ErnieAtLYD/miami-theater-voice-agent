@@ -34,14 +34,15 @@ This is a Vercel-hosted voice agent API for Miami theater showtimes, designed to
 3. Voice agent queries the processed data through various filters
 
 *Voicemail System:*
-1. Caller requests to leave message via ElevenLabs agent
-2. Agent invokes "Leave-Voicemail" tool (webhook)
-3. Call transfers to Twilio voicemail endpoint
-4. Twilio records message (up to 3 minutes) and transcribes
-5. Recording completed → callback stores in Redis
-6. Email notification sent to staff via Resend
-7. Transcription complete → second email with text
-8. Staff accesses via dashboard at `/api/voicemail/list`
+**Note:** Twilio voicemail endpoints are accessed directly by a configured Twilio phone number, NOT via ElevenLabs webhook. ElevenLabs agents have native call transfer capabilities - use those instead of building custom webhook tools for call routing.
+
+1. Caller dials Twilio phone number configured to use voicemail endpoint
+2. Twilio invokes `/api/twilio/voicemail` and receives TwiML instructions
+3. Twilio records message (up to 3 minutes) and transcribes
+4. Recording completed → callback stores in Redis
+5. Email notification sent to staff via Resend
+6. Transcription complete → second email with text
+7. Staff accesses via dashboard at `/api/voicemail/list`
 
 ### Data Structure
 
@@ -96,13 +97,12 @@ The API is specifically designed for ElevenLabs voice agents:
 
 ### Voicemail Integration
 
-The voicemail system integrates ElevenLabs conversational AI with Twilio recording:
+The voicemail system uses Twilio's native voice recording capabilities. The endpoints are accessed directly by a Twilio phone number (configured in Twilio Console), not via ElevenLabs webhooks.
 
-**ElevenLabs Tool Configuration:**
-- Tool type: Webhook
-- Tool name: "Leave-Voicemail"
-- Invoked when: Caller wants to speak to staff or leave a message
-- Tool configuration: `elevenlabs/voicemail-tool-config.json`
+**Twilio Phone Number Configuration:**
+- Configure in Twilio Console: Voice & Fax → Webhook URL
+- URL: `https://miami-theater-voice-agent.vercel.app/api/twilio/voicemail`
+- Method: POST
 
 **Twilio Recording Features:**
 - Maximum recording length: 3 minutes (180 seconds)
@@ -223,8 +223,8 @@ voiceResponse.record({
 ```
 
 **Recording Workflow:**
-1. ElevenLabs agent invokes Leave-Voicemail tool
-2. `/api/twilio/voicemail` returns TwiML with `<Record>` verb
+1. Caller dials Twilio phone number (configured in Twilio Console)
+2. Twilio invokes `/api/twilio/voicemail` which returns TwiML with `<Record>` verb
 3. Twilio records caller's message and generates transcription
 4. Recording complete → POST to `/api/twilio/voicemail-callback`
 5. Callback stores voicemail in Redis sorted set
