@@ -34,7 +34,7 @@ async function createWebhookTool(client, vercelUrl) {
   const toolConfig = {
     tool_config: {
       type: 'webhook',
-      name: 'Miami Theater Showtimes',
+      name: 'Miami-Theater-Showtimes',
       description: 'Get current movie showtimes for Miami theaters. Can search by date, movie title, day type (today/tomorrow/weekend), or time preference (afternoon/evening/night).',
       response_timeout_secs: 10,
       disable_interruptions: false,
@@ -43,7 +43,6 @@ async function createWebhookTool(client, vercelUrl) {
         url: `${vercelUrl}/api/showtimes`,
         method: 'GET',
         query_params_schema: {
-          type: 'object',
           properties: {
             date: {
               type: 'string',
@@ -64,12 +63,12 @@ async function createWebhookTool(client, vercelUrl) {
               enum: ['afternoon', 'evening', 'night'],
               description: 'Filter by time of day: \'afternoon\' (12-5 PM), \'evening\' (5-9 PM), \'night\' (9 PM+)'
             }
-          },
-          additionalProperties: false
+          }
         },
         request_headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'ElevenLabs-Agent/1.0'
+          'User-Agent': 'ElevenLabs-Agent/1.0',
+          'Authorization': 'Bearer ' + (process.env.API_TOKEN || 'your-api-token-here')
         }
       }
     }
@@ -91,8 +90,8 @@ async function createWebhookTool(client, vercelUrl) {
     }
 
     const tool = await response.json();
-    console.log(`✅ Created webhook tool: ${tool.tool_id}`);
-    return tool.tool_id;
+    console.log(`✅ Created webhook tool: ${tool.id}`);
+    return tool.id;
   } catch (error) {
     console.error('❌ Error creating webhook tool:', error.message);
     return null;
@@ -137,7 +136,7 @@ Always be friendly, helpful, and provide clear information about Miami theater s
       agent: {
         prompt: {
           prompt: systemPrompt,
-          tools: toolId ? [toolId] : []
+          tool_ids: toolId ? [toolId] : []
         },
         first_message: "Hi! I'm your Miami theater assistant. I can help you find movie showtimes at local theaters. What would you like to know about current movies and showtimes?"
       }
@@ -145,7 +144,7 @@ Always be friendly, helpful, and provide clear information about Miami theater s
   };
 
   try {
-    const response = await fetch('https://api.elevenlabs.io/v1/convai/agents', {
+    const response = await fetch('https://api.elevenlabs.io/v1/convai/agents/create', {
       method: 'POST',
       headers: {
         'xi-api-key': client.apiKey,

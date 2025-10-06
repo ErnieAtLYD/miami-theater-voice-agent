@@ -1,7 +1,7 @@
 {
   "tool_config": {
     "type": "webhook",
-    "name": "Miami Theater Showtimes",
+    "name": "Miami-Theater-Showtimes",
     "description": "Get current movie showtimes for Miami theaters. Can search by date, movie title, day type (today/tomorrow/weekend), or time preference (afternoon/evening/night).",
     "response_timeout_secs": 10,
     "disable_interruptions": false,
@@ -10,7 +10,6 @@
       "url": "https://your-vercel-app.vercel.app/api/showtimes",
       "method": "GET",
       "query_params_schema": {
-        "type": "object",
         "properties": {
           "date": {
             "type": "string",
@@ -31,12 +30,12 @@
             "enum": ["afternoon", "evening", "night"],
             "description": "Filter by time of day: 'afternoon' (12-5 PM), 'evening' (5-9 PM), 'night' (9 PM+)"
           }
-        },
-        "additionalProperties": false
+        }
       },
       "request_headers": {
         "Content-Type": "application/json",
-        "User-Agent": "ElevenLabs-Agent/1.0"
+        "User-Agent": "ElevenLabs-Agent/1.0",
+        "Authorization": "Bearer your-api-token-here"
       }
     }
   }

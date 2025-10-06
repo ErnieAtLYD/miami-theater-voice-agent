@@ -1,6 +1,8 @@
 # Miami Theater Voice Agent
 
-A Vercel-hosted voice agent API for Miami theater showtimes, designed to integrate with ElevenLabs' voice agent system. The application fetches theater data from Agile WebSales and serves it through a REST API optimized for voice interaction using serverless functions.
+A voice agent API for O Cinema Miami theater showtimes that fetches data from Agile Ticketing Solutions' API and serves it optimized for voice interaction.
+
+
 
 ## Features
 
@@ -8,6 +10,9 @@ A Vercel-hosted voice agent API for Miami theater showtimes, designed to integra
 - **Automated Data Ingestion**: Fetches theater data every 30 minutes via scheduled cron job
 - **Voice-Optimized API**: Responses formatted for natural text-to-speech integration
 - **Multiple Query Types**: Support for date, movie title, and time-based searches
+- **Voicemail System**: AI-powered voicemail with Twilio recording and transcription
+- **Email Notifications**: Automatic staff notifications via Resend with recording links and transcriptions
+- **Staff Dashboard**: Beautiful web interface for managing voicemails
 - **High-Performance Caching**: Upstash Redis for sub-second response times
 - **Cross-Origin Ready**: CORS enabled for voice agent platform integration
 - **Production Ready**: Environment-based configuration with secure authentication
@@ -62,6 +67,111 @@ curl "https://your-domain.vercel.app/api/showtimes?day_type=weekend&time_prefere
 
 Automated endpoint for data ingestion (secured with bearer token).
 
+### Voicemail System Endpoints
+
+#### POST `/api/twilio/voicemail`
+
+Twilio webhook endpoint that returns TwiML for voicemail recording. Called by ElevenLabs Leave-Voicemail tool.
+
+**Features:**
+- Records up to 3 minutes of audio
+- Automatic transcription via Twilio
+- Caller can press `*` to finish recording
+- Returns TwiML response for Twilio
+
+#### POST `/api/twilio/voicemail-callback`
+
+Handles completed voicemail recordings from Twilio.
+
+**Actions:**
+- Stores voicemail metadata in Redis
+- Sends email notification to staff
+- Returns TwiML confirmation message
+
+#### POST `/api/twilio/voicemail-transcription`
+
+Processes transcription results from Twilio.
+
+**Actions:**
+- Updates voicemail record with transcription text
+- Sends follow-up email with transcription
+
+#### GET `/api/voicemail/list`
+
+Staff dashboard for viewing and managing voicemails.
+
+**Query Parameters:**
+- `limit` - Number of voicemails to return (default: 50)
+- `offset` - Pagination offset (default: 0)
+- `unlistened_only` - Filter to unlistened messages (true/false)
+
+**Response Format:**
+- Browser: Beautiful HTML dashboard
+- API: JSON array of voicemail objects
+
+**Example:**
+```bash
+# View dashboard in browser
+open https://your-domain.vercel.app/api/voicemail/list
+
+# Get JSON data
+curl "https://your-domain.vercel.app/api/voicemail/list"
+
+# Filter unlistened only
+curl "https://your-domain.vercel.app/api/voicemail/list?unlistened_only=true"
+```
+
+## ElevenLabs Voice Agent Integration
+
+This API is optimized for ElevenLabs Conversational AI, enabling natural voice queries about Miami theater showtimes.
+
+### Quick Setup
+
+1. **Install Dependencies**
+   ```bash
+   # Python
+   pip install elevenlabs>=1.0.0
+
+   # Or Node.js
+   npm install elevenlabs dotenv
+   ```
+
+2. **Configure Environment**
+   ```bash
+   # Add to your .env file
+   ELEVENLABS_API_KEY=sk-your-elevenlabs-api-key
+   VERCEL_APP_URL=https://your-app.vercel.app
+   ```
+
+3. **Run Setup Script**
+   ```bash
+   cd elevenlabs
+   python setup_agent.py  # or: node setup_agent.js
+   ```
+
+### Voice Interactions
+
+**Showtime Queries:**
+Users can ask natural questions like:
+- *"What movies are playing tonight?"* → Today's evening showtimes
+- *"When is The Substance showing?"* → All showtimes for that movie
+- *"Any afternoon shows tomorrow?"* → Tomorrow's 12-5 PM showtimes
+- *"What's playing this weekend?"* → Friday-Sunday showtimes
+
+**Voicemail System:**
+Callers can also:
+- *"I'd like to speak to someone"* → Agent transfers to voicemail
+- *"Can I leave a message?"* → Agent initiates voicemail recording
+- *"I have a question about tickets"* → Agent offers to take a message
+
+The API returns voice-optimized responses with conversational summaries for natural text-to-speech.
+
+### Troubleshooting
+
+- **Tool creation failed**: Verify `ELEVENLABS_API_KEY` is correct
+- **Agent can't reach API**: Ensure `VERCEL_APP_URL` points to deployed app
+- **Test directly**: `curl "your-app.vercel.app/api/showtimes?day_type=today"`
+
 ## Setup
 
 ### Prerequisites
@@ -79,22 +189,34 @@ Create a `.env.local` file for local development:
 # Agile WebSales API
 AGILE_GUID=your-agile-guid-here
 
-# Upstash Redis Configuration
+# Redis Configuration (choose ONE option)
+
+# Option 1: Direct Upstash Redis
 UPSTASH_REDIS_REST_URL=https://your-region.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your-redis-rest-token
 
-# Alternative Redis environment variables (Vercel KV)
-KV_REST_API_URL=https://your-region.upstash.io
-KV_REST_API_TOKEN=your-redis-rest-token
+# Option 2: Vercel KV (powered by Upstash)
+# KV_REST_API_URL=https://your-region.kv.vercel-storage.com
+# KV_REST_API_TOKEN=your-vercel-kv-token
 
 # Cron Job Security
 CRON_SECRET=your-secure-random-string
+
+# Voicemail System (optional - required for voicemail functionality)
+TWILIO_ACCOUNT_SID=your-twilio-account-sid
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+RESEND_API_KEY=your-resend-api-key
+STAFF_EMAIL=staff@ocinema.org
+FROM_EMAIL=O Cinema Voicemail <noreply@ocinema.org>
+
+# Staff Dashboard Authentication (required for voicemail dashboard access)
+STAFF_DASHBOARD_SECRET=your-secure-random-string-at-least-32-chars
 ```
 
-**Redis Setup Options:**
-- Use `UPSTASH_REDIS_REST_*` for direct Upstash integration
-- Use `KV_REST_API_*` when using Vercel KV (powered by Upstash)
-- The application automatically detects and uses available credentials
+**Redis Setup Options (choose one):**
+- **Direct Upstash**: Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+- **Vercel KV**: Set `KV_REST_API_URL` and `KV_REST_API_TOKEN` (automatically provisioned in Vercel dashboard)
+- The application automatically detects which credentials are available
 
 ### Local Development
 
@@ -126,9 +248,22 @@ vercel
 
 # Set required environment variables
 vercel env add AGILE_GUID
+vercel env add CRON_SECRET
+
+# Add Redis credentials (choose one option)
+# For direct Upstash:
 vercel env add UPSTASH_REDIS_REST_URL
 vercel env add UPSTASH_REDIS_REST_TOKEN
-vercel env add CRON_SECRET
+
+# For Vercel KV (alternative - provision via Vercel dashboard instead)
+
+# Add voicemail system credentials (if using voicemail feature)
+vercel env add TWILIO_ACCOUNT_SID
+vercel env add TWILIO_AUTH_TOKEN
+vercel env add RESEND_API_KEY
+vercel env add STAFF_EMAIL
+vercel env add FROM_EMAIL
+vercel env add STAFF_DASHBOARD_SECRET  # REQUIRED for security
 
 # Deploy updates
 vercel --prod
@@ -139,6 +274,69 @@ vercel --prod
 - Cron jobs automatically scheduled via `vercel.json`
 - Environment variables securely managed in dashboard
 - Auto-scaling based on traffic demand
+
+### Voicemail System Setup
+
+**1. Configure Twilio:**
+- Sign up for [Twilio](https://www.twilio.com) account
+- Copy Account SID and Auth Token to environment variables
+- Note: You don't need a Twilio phone number for this setup (ElevenLabs handles the call)
+
+**2. Configure Email (Resend):**
+- Sign up for [Resend](https://resend.com) account (100 emails/day free)
+- Create an API key from the dashboard
+- Verify your sender email address or domain
+- Add credentials to environment variables
+- Note: Use format `Name <email@domain.com>` for FROM_EMAIL
+
+**3. Configure ElevenLabs Agent:**
+- Upload `elevenlabs/voicemail-tool-config.json` as a new webhook tool
+- Update the URL to point to your deployed Vercel app
+- Add the tool to your conversational AI agent
+- The agent will now offer voicemail when appropriate
+
+**4. Configure Security (Required):**
+
+Before deploying to production, you **must** configure authentication to secure the voicemail system:
+
+**Generate Staff Dashboard Secret:**
+```bash
+# Generate a secure random string (32+ characters)
+openssl rand -base64 32
+```
+
+**Add to Vercel Environment Variables:**
+```bash
+# Via Vercel CLI
+vercel env add STAFF_DASHBOARD_SECRET
+
+# Or add via Vercel Dashboard:
+# Settings → Environment Variables → Add New
+# Name: STAFF_DASHBOARD_SECRET
+# Value: [paste generated token]
+```
+
+**Important Security Notes:**
+- `STAFF_DASHBOARD_SECRET` is **required** for dashboard access
+- `TWILIO_AUTH_TOKEN` validates webhook authenticity (prevents forged requests)
+- All Twilio webhooks are protected with signature validation
+- Staff dashboard requires bearer token authentication
+
+**Test Security Implementation:**
+```bash
+# Dashboard should reject requests without auth token (returns 401)
+curl https://your-app.vercel.app/api/voicemail/list
+
+# Access with valid token (returns voicemail list)
+curl -H "Authorization: Bearer YOUR_STAFF_DASHBOARD_SECRET" \
+  https://your-app.vercel.app/api/voicemail/list
+```
+
+**5. Access Staff Dashboard:**
+- Navigate to `https://your-app.vercel.app/api/voicemail/list`
+- Provide the bearer token when prompted (use browser extension or API client)
+- View all voicemails, listen to recordings, and read transcriptions
+- Bookmark for easy staff access
 
 ## Architecture
 
@@ -153,11 +351,22 @@ Built on **Vercel's serverless platform** with automatic scaling:
 
 ### Data Flow
 
+**Showtimes System:**
 1. **Scheduled Ingestion**: Vercel Cron triggers `/api/cron/ingest-showtimes` every 30 minutes
 2. **Data Fetching**: Serverless function pulls fresh data from Agile WebSales API
 3. **Data Processing**: Raw theater data transformed into voice-optimized structures
 4. **Redis Caching**: Processed data stored in Upstash Redis with 2-hour TTL
 5. **API Serving**: `/api/showtimes` function serves cached data to voice agents
+
+**Voicemail System:**
+1. **Call Initiation**: Caller asks ElevenLabs agent to leave a message
+2. **Tool Invocation**: Agent calls Leave-Voicemail webhook tool
+3. **TwiML Generation**: `/api/twilio/voicemail` returns recording instructions
+4. **Recording**: Twilio records caller's message (up to 3 minutes)
+5. **Transcription**: Twilio generates automatic transcription
+6. **Storage**: Voicemail stored in Redis with timestamp indexing
+7. **Notification**: Staff receives email via Resend with recording link
+8. **Dashboard Access**: Staff can review voicemails at `/api/voicemail/list`
 
 ### Data Structure & Caching
 
@@ -173,12 +382,21 @@ const redis = new Redis({
 
 **Optimized data structures for fast queries:**
 
+*Showtimes:*
 - `showtimes:current` - Complete processed dataset with 2-hour TTL
 - `movies` - Array of all available movies with showtimes
 - `by_date` - Hash map for date-based lookups
 - `weekend` - Pre-filtered Friday/Saturday/Sunday showtimes
 - `upcoming` - Next 7 days of showtimes
 - `showtimes:last_updated` - Timestamp for cache freshness tracking
+
+*Voicemails:*
+- `voicemails:index` - Sorted set of voicemail IDs by timestamp
+- `voicemail:{RecordingSid}` - Individual voicemail records with:
+  - Recording URL and duration
+  - Caller phone number
+  - Transcription text
+  - Timestamps and status
 
 ### Voice Agent Integration
 
@@ -246,134 +464,6 @@ vercel logs
 vercel logs --filter="/api/cron"
 ```
 
-## ElevenLabs Voice Agent Integration
-
-### Overview
-
-This project includes complete integration with ElevenLabs Conversational AI, allowing users to ask natural voice questions about Miami theater showtimes and receive spoken responses.
-
-### Quick Setup
-
-1. **Prerequisites**
-   ```bash
-   # Install ElevenLabs Python SDK
-   pip install elevenlabs>=1.0.0
-
-   # Or use Node.js version
-   npm install elevenlabs dotenv
-   ```
-
-2. **Environment Configuration**
-   ```bash
-   # Add to your .env file
-   ELEVENLABS_API_KEY=sk-your-elevenlabs-api-key
-   VERCEL_APP_URL=https://your-app.vercel.app
-   ```
-
-3. **Run Setup Script**
-   ```bash
-   # Python version
-   cd elevenlabs
-   python setup_agent.py
-
-   # Node.js version
-   cd elevenlabs
-   node setup_agent.js
-   ```
-
-### Voice Interactions Examples
-
-Users can now ask natural questions like:
-
-- **"What movies are playing tonight?"**
-  - → Searches today's evening showtimes
-- **"When is The Substance showing?"**
-  - → Finds all showtimes for that specific movie
-- **"Any afternoon shows tomorrow?"**
-  - → Filters tomorrow's afternoon (12-5 PM) showtimes
-- **"What's playing this weekend?"**
-  - → Shows Friday-Sunday showtimes
-
-### Agent Configuration
-
-The ElevenLabs agent is configured with:
-
-- **Webhook Tool**: Connects directly to your `/api/showtimes` endpoint
-- **Smart Parameters**: Automatically maps voice queries to API parameters
-- **Voice-Optimized Responses**: Natural language summaries for TTS
-- **Conversational Flow**: Handles follow-up questions and clarifications
-
-### Response Format
-
-The API now returns voice-optimized responses:
-
-```json
-{
-  "success": true,
-  "data": [...],
-  "conversational_summary": "I found 3 showtimes for today. The Substance is showing today at 2 PM at O Cinema South Beach. Anora is showing today at 5 PM at O Cinema South Beach...",
-  "query_info": {
-    "results_count": 3
-  }
-}
-```
-
-### Advanced Configuration
-
-#### Custom Voice Settings
-```javascript
-// Configure in ElevenLabs dashboard
-{
-  "voice_id": "your-preferred-voice-id",
-  "voice_settings": {
-    "stability": 0.75,
-    "similarity_boost": 0.85,
-    "style": 0.2
-  }
-}
-```
-
-#### Authentication (Optional)
-```javascript
-// Add to webhook tool configuration
-"request_headers": {
-  "Authorization": "Bearer YOUR_API_TOKEN",
-  "Content-Type": "application/json"
-}
-```
-
-### File Structure
-
-```
-elevenlabs/
-├── webhook-tool-config.json    # Tool configuration
-├── setup_agent.py              # Python setup script
-├── setup_agent.js              # Node.js setup script
-├── requirements.txt            # Python dependencies
-├── package.json               # Node.js dependencies
-└── agent_config.json          # Generated config (after setup)
-```
-
-### Troubleshooting
-
-**Common Issues:**
-
-1. **"Tool creation failed"**
-   - Verify `ELEVENLABS_API_KEY` is set correctly
-   - Check your ElevenLabs subscription limits
-
-2. **"Agent can't reach API"**
-   - Ensure `VERCEL_APP_URL` points to your deployed app
-   - Verify CORS headers are enabled (they are by default)
-
-3. **"Voice responses sound unnatural"**
-   - Check the `conversational_summary` field in API responses
-   - Adjust voice settings in ElevenLabs dashboard
-
-**Getting Help:**
-- View agent logs in ElevenLabs dashboard
-- Test API endpoints directly: `curl "your-app.vercel.app/api/showtimes?day_type=today"`
-- Check Vercel function logs: `vercel logs`
 
 ## Contributing
 
