@@ -8,6 +8,7 @@
  * @returns {string} ISO 8601 formatted timestamp in Eastern Time
  */
 export function getEasternTimeISO() {
+  const now = new Date();
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
@@ -19,12 +20,15 @@ export function getEasternTimeISO() {
     hour12: false
   });
 
-  const parts = formatter.formatToParts(new Date());
+  const parts = formatter.formatToParts(now);
   const values = {};
   parts.forEach(part => values[part.type] = part.value);
 
+  // Preserve milliseconds from the original Date object
+  const milliseconds = now.getMilliseconds().toString().padStart(3, '0');
+
   return new Date(
-    `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}`
+    `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}.${milliseconds}`
   ).toISOString();
 }
 
