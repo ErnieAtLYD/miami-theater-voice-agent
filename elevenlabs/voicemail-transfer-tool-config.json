@@ -1,0 +1,36 @@
+{
+  "_comment": "CORRECT APPROACH: Use ElevenLabs transfer_to_number system tool instead of webhook",
+  "_instructions": [
+    "This is the recommended configuration for voicemail integration",
+    "Instead of creating a custom webhook tool, configure the transfer_to_number system tool in your ElevenLabs agent",
+    "Steps:",
+    "1. Get a Twilio phone number dedicated for voicemail",
+    "2. Configure that Twilio number to request https://your-app.vercel.app/api/twilio/voicemail when a call comes in",
+    "3. Enable the transfer_to_number system tool in your ElevenLabs agent settings",
+    "4. Configure your agent's prompt to use transfer_to_number when caller wants to leave a message",
+    "5. Set the transfer number to your Twilio voicemail number"
+  ],
+  "tool_config": {
+    "type": "system",
+    "name": "transfer_to_number",
+    "description": "Transfer the caller to voicemail when they want to leave a message for O Cinema staff. Use this when the caller asks to speak to someone, leave a message, or when you cannot help them with their inquiry.",
+    "parameters": {
+      "phone_number": "+1-XXX-XXX-XXXX",
+      "_comment": "Replace with your Twilio voicemail phone number"
+    },
+    "twilio_configuration": {
+      "_comment": "Configure this in Twilio Console, not in ElevenLabs",
+      "voice_url": "https://miami-theater-voice-agent.vercel.app/api/twilio/voicemail",
+      "voice_method": "POST",
+      "status_callback": "https://miami-theater-voice-agent.vercel.app/api/twilio/call-status",
+      "status_callback_method": "POST"
+    }
+  },
+  "agent_prompt_example": "When the user asks to leave a message or speak to staff, say 'Let me transfer you to our voicemail system. Please hold.' then use the transfer_to_number tool to transfer them to the voicemail line.",
+  "alternative_approaches": {
+    "sip_trunking": {
+      "description": "For more advanced use cases, use SIP trunking which supports transferring to external numbers",
+      "documentation": "https://elevenlabs.io/docs/conversational-ai/phone-numbers/sip-trunking"
+    }
+  }
+}
