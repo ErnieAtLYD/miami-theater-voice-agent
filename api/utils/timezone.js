@@ -1,4 +1,5 @@
 // api/utils/timezone.js
+
 // Timezone utilities for handling Eastern Time (America/New_York)
 // All dates and times in this application use Miami's timezone
 
@@ -7,8 +8,6 @@
  * @returns {string} ISO 8601 formatted timestamp in Eastern Time
  */
 export function getEasternTimeISO() {
-  const now = new Date();
-  // Use Intl.DateTimeFormat to get individual components in Eastern Time
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
@@ -20,17 +19,22 @@ export function getEasternTimeISO() {
     hour12: false
   });
 
-  const parts = formatter.formatToParts(now);
-  const get = (type) => parts.find(p => p.type === type).value;
+  const parts = formatter.formatToParts(new Date());
+  const values = {};
+  parts.forEach(part => values[part.type] = part.value);
 
-  // Construct ISO string from Eastern Time components
-  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+  return new Date(
+    `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}`
+  ).toISOString();
 }
 
 /**
- * Gets a Date object representing "now" in Eastern Time
- * @returns {Date} Date object adjusted to Eastern Time
- */
+ * Gets a Date object with Eastern Time component values
+ * WARNING: The returned Date is in LOCAL timezone with ET values.
+ * Subsequent getHours() calls will return local time, NOT Eastern Time.
+ * Use formatTimeEastern() for display, not date.getHours().
+ * @returns {Date} Date object with ET components in local timezone
+ */   
 export function getEasternTimeDate() {
   const now = new Date();
   // Get Eastern Time components
@@ -61,7 +65,7 @@ export function getEasternTimeDate() {
 }
 
 /**
- * Formats a datetime string to human-readable time in Eastern Time
+ * Formats a datetime string to human-readable time in Eastern Time (America/New_York)
  * @param {string} dateTimeString - ISO datetime string
  * @returns {string|null} Formatted time (e.g., "7:30 PM") or null if invalid
  */
@@ -77,7 +81,7 @@ export function formatTimeEastern(dateTimeString) {
 }
 
 /**
- * Checks if a date string represents a weekend day (Friday, Saturday, or Sunday)
+ * Checks if a date string represents a weekend day (Friday, Saturday, or Sunday) in Eastern Time (America/New_York)
  * @param {string} dateString - Date string in YYYY-MM-DD format
  * @returns {string|null} 'friday', 'saturday', 'sunday', or null if not a weekend
  */
@@ -97,7 +101,7 @@ export function getWeekendDay(dateString) {
 }
 
 /**
- * Checks if a showtime falls within the next N days from Eastern Time "today"
+ * Checks if a showtime falls within the next N days from Eastern Time "today" (America/New_York) 
  * @param {string} dateString - Date string in YYYY-MM-DD format
  * @param {number} days - Number of days to look ahead (default: 7)
  * @returns {boolean} True if the date is within the range
