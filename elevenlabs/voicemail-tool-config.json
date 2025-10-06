@@ -1,4 +1,15 @@
 {
+  "_WARNING": "THIS CONFIGURATION DOES NOT WORK AS INTENDED",
+  "_explanation": [
+    "PROBLEM: ElevenLabs webhook tools expect JSON responses, but this endpoint returns TwiML (XML).",
+    "ElevenLabs webhook tools CANNOT transfer calls - they can only make HTTP requests and get data back.",
+    "The /api/twilio/voicemail endpoint returns TwiML which ElevenLabs cannot process.",
+    "",
+    "SOLUTION: Use the transfer_to_number system tool instead.",
+    "See voicemail-transfer-tool-config.json for the correct configuration.",
+    "",
+    "This file is kept for reference only."
+  ],
   "tool_config": {
     "type": "webhook",
     "name": "Leave-Voicemail",
@@ -27,5 +38,12 @@
         "Content-Type": "application/json"
       }
     }
-  }
+  },
+  "_migration_steps": [
+    "1. Obtain a Twilio phone number for voicemail",
+    "2. Configure Twilio number voice webhook: https://your-app.vercel.app/api/twilio/voicemail",
+    "3. Enable transfer_to_number system tool in ElevenLabs agent",
+    "4. Update agent prompt to transfer to the Twilio number",
+    "5. Test the integration"
+  ]
 }
