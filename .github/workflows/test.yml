@@ -9,7 +9,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
+    env:
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || secrets.RESEND_API_KEY_DEV }}
+      OCINEMA_EMAIL: ${{ secrets.OCINEMA_EMAIL }}
     strategy:
       matrix:
         node-version: [18.x, 20.x]
