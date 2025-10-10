@@ -3,6 +3,13 @@
 import { Redis } from '@upstash/redis';
 import twilio from 'twilio';
 
+// Configure Vercel to parse form data
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
+
 /**
  * Handles recording status updates from Twilio
  * @param {*} req   Request object

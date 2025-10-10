@@ -4,6 +4,13 @@ import { Redis } from '@upstash/redis';
 import twilio from 'twilio';
 import { sendVoicemailEmail } from '../utils/voicemail-email.js';
 
+// Configure Vercel to parse form data
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
+
 /**
  * Handles transcription updates from Twilio
  * @param {*} req   Request object
