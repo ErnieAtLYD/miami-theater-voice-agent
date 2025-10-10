@@ -254,11 +254,20 @@ export default async function handler(req, res) {
 
         if (response.ok) {
           const html = await response.text();
-          // Extract just the container content (remove outer HTML structure)
+          // Extract both styles and container content
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, 'text/html');
+
+          // Get styles from head
+          const styles = doc.querySelector('style');
           const container = doc.querySelector('.container');
-          dashboardContent.innerHTML = container ? container.outerHTML : html;
+
+          // Inject styles and content
+          if (styles && container) {
+            dashboardContent.innerHTML = styles.outerHTML + container.outerHTML;
+          } else {
+            dashboardContent.innerHTML = html;
+          }
 
           // Set up auto-refresh
           if (refreshTimer) clearInterval(refreshTimer);
