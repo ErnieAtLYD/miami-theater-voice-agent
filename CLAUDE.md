@@ -24,7 +24,8 @@ This is a Vercel-hosted voice agent API for Miami theater showtimes, designed to
 - `api/twilio/voicemail-callback.js` - Handles completed recordings and notifications
 - `api/twilio/voicemail-transcription.js` - Processes transcription results
 - `api/twilio/recording-status.js` - Handles recording status updates
-- `api/voicemail/list.js` - Staff dashboard for viewing voicemails
+- `api/voicemail/list.js` - Staff API/dashboard for viewing voicemails (API + HTML)
+- `api/voicemail/dashboard.js` - Password-protected web dashboard for staff
 
 **Data Flow:**
 
@@ -82,10 +83,12 @@ The showtimes API supports:
 
 **Required for voicemail system:**
 - `TWILIO_ACCOUNT_SID` - Twilio account identifier
-- `TWILIO_AUTH_TOKEN` - Twilio authentication token
+- `TWILIO_AUTH_TOKEN` - Twilio authentication token (also validates webhook signatures)
 - `RESEND_API_KEY` - Resend API key for email notifications
-- `STAFF_EMAIL` - Email address to receive voicemail notifications
+- `OCINEMA_EMAIL` or `STAFF_EMAIL` - Email address to receive voicemail notifications
 - `FROM_EMAIL` - Sender email address (optional, defaults to onboarding@resend.dev)
+- `STAFF_DASHBOARD_SECRET` - Secure token for dashboard authentication (required for security)
+- `BASE_URL` - Production URL (e.g., https://miami-theater-voice-agent.vercel.app) for TwiML callbacks
 
 ### Voice Agent Integration
 
@@ -247,10 +250,12 @@ voiceResponse.record({
 ```
 
 **Staff Dashboard:**
-- Access: `/api/voicemail/list`
-- Features: Listen to recordings, view transcriptions, download MP3s
+- Access: `/api/voicemail/dashboard` - Password-protected web UI with auto-refresh
+- API Access: `/api/voicemail/list` - Bearer token authentication for JSON/HTML
+- Features: Listen to recordings, view transcriptions, download MP3s, real-time updates
 - Data source: Redis sorted set `voicemails:index`
-- Display: HTML UI with responsive design or JSON API
+- Display: Beautiful gradient UI with cards, or JSON API for programmatic access
+- Security: Requires `STAFF_DASHBOARD_SECRET` in Authorization header
 
 ### Development Workflow
 
@@ -268,3 +273,11 @@ voiceResponse.record({
 - Graceful Redis connection fallbacks
 - Development mock data when external APIs unavailable
 - Structured error responses with appropriate HTTP status codes
+- Twilio webhook signature validation to prevent forged requests
+- Body parser explicitly enabled for all Twilio endpoints (required for Vercel)
+
+**Common Issues & Solutions:**
+- See `TROUBLESHOOTING.md` for detailed debugging steps
+- Environment variables must not contain newlines (use `printf` instead of `echo` when setting)
+- All Twilio webhook endpoints require `export const config = { api: { bodyParser: true } }`
+- BASE_URL must be set correctly for TwiML callback URLs to work

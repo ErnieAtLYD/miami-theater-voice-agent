@@ -96,9 +96,31 @@ Processes transcription results from Twilio.
 - Updates voicemail record with transcription text
 - Sends follow-up email with transcription
 
+#### GET `/api/voicemail/dashboard`
+
+Password-protected web dashboard for staff to view and manage voicemails.
+
+**Features:**
+- Beautiful gradient UI with voicemail cards
+- Auto-refresh every 30 seconds
+- Session-based authentication
+- Listen to recordings, view transcriptions, download MP3s
+- Responsive design for mobile/desktop
+
+**Access:**
+```bash
+# Open in browser and enter password when prompted
+open https://your-domain.vercel.app/api/voicemail/dashboard
+```
+
 #### GET `/api/voicemail/list`
 
-Staff dashboard for viewing and managing voicemails.
+API/HTML endpoint for voicemail data (requires bearer token authentication).
+
+**Authentication:**
+```
+Authorization: Bearer YOUR_STAFF_DASHBOARD_SECRET
+```
 
 **Query Parameters:**
 - `limit` - Number of voicemails to return (default: 50)
@@ -106,19 +128,23 @@ Staff dashboard for viewing and managing voicemails.
 - `unlistened_only` - Filter to unlistened messages (true/false)
 
 **Response Format:**
-- Browser: Beautiful HTML dashboard
-- API: JSON array of voicemail objects
+- `Accept: text/html` - Returns styled HTML dashboard
+- `Accept: application/json` - Returns JSON array of voicemail objects
 
 **Example:**
 ```bash
-# View dashboard in browser
-open https://your-domain.vercel.app/api/voicemail/list
+# Get JSON data (requires authentication)
+curl -H "Authorization: Bearer YOUR_SECRET" \
+  "https://your-domain.vercel.app/api/voicemail/list"
 
-# Get JSON data
-curl "https://your-domain.vercel.app/api/voicemail/list"
+# Get HTML dashboard (requires authentication)
+curl -H "Authorization: Bearer YOUR_SECRET" \
+  -H "Accept: text/html" \
+  "https://your-domain.vercel.app/api/voicemail/list"
 
 # Filter unlistened only
-curl "https://your-domain.vercel.app/api/voicemail/list?unlistened_only=true"
+curl -H "Authorization: Bearer YOUR_SECRET" \
+  "https://your-domain.vercel.app/api/voicemail/list?unlistened_only=true"
 ```
 
 ## ElevenLabs Voice Agent Integration
@@ -206,11 +232,14 @@ CRON_SECRET=your-secure-random-string
 TWILIO_ACCOUNT_SID=your-twilio-account-sid
 TWILIO_AUTH_TOKEN=your-twilio-auth-token
 RESEND_API_KEY=your-resend-api-key
-STAFF_EMAIL=staff@ocinema.org
+OCINEMA_EMAIL=info@o-cinema.org  # Primary email (fallback: STAFF_EMAIL)
 FROM_EMAIL=O Cinema Voicemail <noreply@ocinema.org>
 
 # Staff Dashboard Authentication (required for voicemail dashboard access)
 STAFF_DASHBOARD_SECRET=your-secure-random-string-at-least-32-chars
+
+# Base URL for TwiML callbacks (required for production)
+BASE_URL=https://miami-theater-voice-agent.vercel.app
 ```
 
 **Redis Setup Options (choose one):**
@@ -258,12 +287,14 @@ vercel env add UPSTASH_REDIS_REST_TOKEN
 # For Vercel KV (alternative - provision via Vercel dashboard instead)
 
 # Add voicemail system credentials (if using voicemail feature)
-vercel env add TWILIO_ACCOUNT_SID
-vercel env add TWILIO_AUTH_TOKEN
-vercel env add RESEND_API_KEY
-vercel env add STAFF_EMAIL
-vercel env add FROM_EMAIL
-vercel env add STAFF_DASHBOARD_SECRET  # REQUIRED for security
+# IMPORTANT: Use printf (not echo) to avoid newline characters
+printf "your-account-sid" | vercel env add TWILIO_ACCOUNT_SID
+printf "your-auth-token" | vercel env add TWILIO_AUTH_TOKEN
+printf "your-resend-key" | vercel env add RESEND_API_KEY
+printf "info@o-cinema.org" | vercel env add OCINEMA_EMAIL
+printf "O Cinema <noreply@ocinema.org>" | vercel env add FROM_EMAIL
+printf "your-secure-token" | vercel env add STAFF_DASHBOARD_SECRET  # REQUIRED for security
+printf "https://your-app.vercel.app" | vercel env add BASE_URL  # REQUIRED for callbacks
 
 # Deploy updates
 vercel --prod
@@ -333,10 +364,26 @@ curl -H "Authorization: Bearer YOUR_STAFF_DASHBOARD_SECRET" \
 ```
 
 **5. Access Staff Dashboard:**
-- Navigate to `https://your-app.vercel.app/api/voicemail/list`
-- Provide the bearer token when prompted (use browser extension or API client)
-- View all voicemails, listen to recordings, and read transcriptions
-- Bookmark for easy staff access
+
+**Web Dashboard (Recommended for Staff):**
+- Navigate to `https://your-app.vercel.app/api/voicemail/dashboard`
+- Enter your `STAFF_DASHBOARD_SECRET` password when prompted
+- Beautiful UI with auto-refresh, listen to recordings, view transcriptions
+- Session persists until logout
+
+**API Access (For Developers):**
+```bash
+# JSON API with bearer token
+curl -H "Authorization: Bearer YOUR_STAFF_DASHBOARD_SECRET" \
+  https://your-app.vercel.app/api/voicemail/list
+```
+
+**Troubleshooting:**
+If you encounter issues, see `TROUBLESHOOTING.md` for detailed debugging steps including:
+- Twilio debugger usage
+- Environment variable validation
+- Common error codes and solutions
+- Testing workflows
 
 ## Architecture
 

@@ -4,6 +4,13 @@ import twilio from 'twilio';
 
 const { twiml } = twilio;
 
+// Configure Vercel to parse form data
+export const config = {
+  api: {
+    bodyParser: true, // Enable body parsing
+  },
+};
+
 /**
  * Twilio voicemail TwiML endpoint
  * @param {*} req   Request object
