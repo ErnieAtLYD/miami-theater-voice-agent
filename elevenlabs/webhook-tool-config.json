@@ -7,7 +7,7 @@
     "disable_interruptions": false,
     "force_pre_tool_speech": false,
     "api_schema": {
-      "url": "https://your-vercel-app.vercel.app/api/showtimes",
+      "url": "https://miami-theater-voice-agent.vercel.app/api/showtimes",
       "method": "GET",
       "query_params_schema": {
         "properties": {

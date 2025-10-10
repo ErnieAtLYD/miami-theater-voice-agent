@@ -15,6 +15,7 @@ A voice agent API for O Cinema Miami theater showtimes that fetches data from Ag
 - **Staff Dashboard**: Beautiful web interface for managing voicemails
 - **High-Performance Caching**: Upstash Redis for sub-second response times
 - **Cross-Origin Ready**: CORS enabled for voice agent platform integration
+- **Customer Message Forwarding**: Email integration for voice agent users to leave messages
 - **Production Ready**: Environment-based configuration with secure authentication
 
 ## API Endpoints
@@ -59,6 +60,54 @@ curl "https://your-domain.vercel.app/api/showtimes?day_type=weekend&time_prefere
   "last_updated": "2024-01-15T10:00:00.000Z",
   "query_info": {
     "results_count": 1
+  }
+}
+```
+
+### POST `/api/send-message`
+
+Enables voice agent users to leave messages for O Cinema staff, delivered via email.
+
+**ElevenLabs Integration:** This endpoint should be configured as a second webhook tool named `Send-Message-To-Cinema` in your ElevenLabs agent setup.
+
+**Request Body:**
+```json
+{
+  "caller_name": "John Doe",
+  "caller_phone": "(305) 555-1234",
+  "message": "I'd like to inquire about group bookings",
+  "context": "Asking about showtimes"
+}
+```
+
+**Parameters:**
+- `message` (required) - The message to send
+- `caller_name` (optional) - Caller's name
+- `caller_phone` (optional) - Caller's phone number
+- `context` (optional) - What they were doing before leaving message
+
+**Example Request:**
+```bash
+curl -X POST "https://your-domain.vercel.app/api/send-message" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caller_name": "Jane Smith",
+    "caller_phone": "(305) 555-5678",
+    "message": "I would like to book a private screening",
+    "context": "Inquiring about The Substance showtimes"
+  }'
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "email_id": "abc123",
+  "conversational_response": "Thank you, Jane. Your message has been sent to O Cinema's team. Someone will get back to you soon. Is there anything else I can help you with?",
+  "message_info": {
+    "sent_at": "Monday, January 15, 2024, 3:30 PM",
+    "caller_name": "Jane Smith",
+    "has_phone": true
   }
 }
 ```
@@ -149,6 +198,8 @@ This API is optimized for ElevenLabs Conversational AI, enabling natural voice q
    python setup_agent.py  # or: node setup_agent.js
    ```
 
+   **Note:** The current setup scripts only create the `Miami-Theater-Showtimes` tool. You need to manually add a second webhook tool for `Send-Message-To-Cinema` (POST to `/api/send-message`) in the ElevenLabs dashboard and update the agent's system prompt to mention message forwarding capabilities.
+
 ### Voice Interactions
 
 **Showtime Queries:**
@@ -157,6 +208,7 @@ Users can ask natural questions like:
 - *"When is The Substance showing?"* → All showtimes for that movie
 - *"Any afternoon shows tomorrow?"* → Tomorrow's 12-5 PM showtimes
 - *"What's playing this weekend?"* → Friday-Sunday showtimes
+- *"I'd like to leave a message for the theater"* → Forwards message to O Cinema via email *(requires manual tool setup - see note above)*
 
 **Voicemail System:**
 Callers can also:
@@ -179,7 +231,8 @@ The API returns voice-optimized responses with conversational summaries for natu
 - Node.js 18+ (with npm)
 - [Vercel account](https://vercel.com) for deployment
 - [Upstash Redis](https://upstash.com) serverless database instance
-- Agile WebSales API access credentials
+- Agile Ticketing Solutions WebSales API access credentials
+- [Resend account](https://resend.com) for email delivery (required for message forwarding)
 
 ### Environment Variables
 
