@@ -64,34 +64,27 @@ export default async function handler(req, res) {
       rev: true // Reverse order (newest first)
     });
 
-    if (!voicemailIds || voicemailIds.length === 0) {
-      return res.status(200).json({
-        success: true,
-        voicemails: [],
-        total: 0,
-        message: 'No voicemails found'
-      });
-    }
-
     // Fetch all voicemail records
     const voicemails = [];
-    for (const id of voicemailIds) {
-      try {
-        const voicemailData = await redis.get(`voicemail:${id}`);
-        if (voicemailData) {
-          const voicemail = typeof voicemailData === 'string'
-            ? JSON.parse(voicemailData)
-            : voicemailData;
+    if (voicemailIds && voicemailIds.length > 0) {
+      for (const id of voicemailIds) {
+        try {
+          const voicemailData = await redis.get(`voicemail:${id}`);
+          if (voicemailData) {
+            const voicemail = typeof voicemailData === 'string'
+              ? JSON.parse(voicemailData)
+              : voicemailData;
 
-          // Filter if unlistened_only is requested
-          if (unlistened_only === 'true' && voicemail.listened) {
-            continue;
+            // Filter if unlistened_only is requested
+            if (unlistened_only === 'true' && voicemail.listened) {
+              continue;
+            }
+
+            voicemails.push(voicemail);
           }
-
-          voicemails.push(voicemail);
+        } catch (error) {
+          console.error(`Error fetching voicemail ${id}:`, error);
         }
-      } catch (error) {
-        console.error(`Error fetching voicemail ${id}:`, error);
       }
     }
 
@@ -269,10 +262,19 @@ function generateHTMLView(voicemails, total) {
       color: #666;
     }
     .empty-state svg {
-      width: 120px;
-      height: 120px;
+      width: 80px;
+      height: 80px;
       margin-bottom: 20px;
       opacity: 0.3;
+    }
+    .empty-state h2 {
+      font-size: 20px;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    .empty-state p {
+      font-size: 14px;
+      color: #666;
     }
   </style>
 </head>

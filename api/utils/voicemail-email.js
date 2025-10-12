@@ -28,8 +28,9 @@ export async function sendVoicemailEmail(voicemail, emailType = 'new') {
   if (!process.env.RESEND_API_KEY) {
     throw new Error('RESEND_API_KEY not configured');
   }
-  if (!process.env.STAFF_EMAIL) {
-    throw new Error('STAFF_EMAIL not configured');
+  const staffEmail = process.env.STAFF_EMAIL || process.env.OCINEMA_EMAIL;
+  if (!staffEmail) {
+    throw new Error('STAFF_EMAIL or OCINEMA_EMAIL not configured');
   }
 
   // Using Resend API for email delivery
@@ -58,7 +59,7 @@ export async function sendVoicemailEmail(voicemail, emailType = 'new') {
 function buildNewVoicemailEmail(voicemail) {
   return {
     from: process.env.FROM_EMAIL || 'O Cinema Voicemail <onboarding@resend.dev>',
-    to: process.env.STAFF_EMAIL,
+    to: process.env.STAFF_EMAIL || process.env.OCINEMA_EMAIL,
     subject: `New Voicemail from ${escapeHtml(voicemail.from)}`,
     html: `
       <h2>New Voicemail Message</h2>
@@ -81,7 +82,7 @@ function buildNewVoicemailEmail(voicemail) {
 function buildTranscriptionEmail(voicemail) {
   return {
     from: process.env.FROM_EMAIL || 'O Cinema Voicemail <onboarding@resend.dev>',
-    to: process.env.STAFF_EMAIL,
+    to: process.env.STAFF_EMAIL || process.env.OCINEMA_EMAIL,
     subject: `Voicemail Transcription from ${escapeHtml(voicemail.from)}`,
     html: `
       <h2>Voicemail Transcription Available</h2>

@@ -4,5 +4,11 @@
       "path": "/api/cron/ingest-showtimes",
       "schedule": "*/30 * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/twilio/*.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
 }
