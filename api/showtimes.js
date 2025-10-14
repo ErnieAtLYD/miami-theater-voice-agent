@@ -1,6 +1,7 @@
 // api/showtimes.js
 // ElevenLabs Client Tool endpoint
 import { Redis } from '@upstash/redis';
+import { getEasternTimeDate, getEasternTimeISO, formatDateYYYYMMDD, parseTime12Hour } from './utils/timezone.js';
 
 export default async function handler(req, res) {
   // Enable CORS for ElevenLabs
@@ -58,12 +59,13 @@ export default async function handler(req, res) {
     if (day_type === 'weekend') {
       results = getWeekendShowtimes(showtimes);
     } else if (day_type === 'today') {
-      const today = new Date().toISOString().split('T')[0];
+      const todayET = getEasternTimeDate();
+      const today = formatDateYYYYMMDD(todayET);
       results = getShowtimesByDate(showtimes, today);
     } else if (day_type === 'tomorrow') {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      const tomorrowET = getEasternTimeDate();
+      tomorrowET.setDate(tomorrowET.getDate() + 1);
+      const tomorrowStr = formatDateYYYYMMDD(tomorrowET);
       results = getShowtimesByDate(showtimes, tomorrowStr);
     } else if (date) {
       results = getShowtimesByDate(showtimes, date);
@@ -73,6 +75,9 @@ export default async function handler(req, res) {
       // Default: next 3 days
       results = getUpcomingShowtimes(showtimes, 3);
     }
+
+    // Filter out past showtimes
+    results = filterPastShowtimes(results);
 
     // Apply time preference filter
     if (time_preference) {
@@ -95,6 +100,7 @@ export default async function handler(req, res) {
       data: formatted,
       conversational_summary: conversationalSummary,
       last_updated: lastUpdated,
+      current_time_miami: getEasternTimeISO(),
       query_info: {
         date,
         movie_title,
@@ -133,17 +139,17 @@ function getShowtimesByMovie(showtimes, movieTitle) {
 
 function getUpcomingShowtimes(showtimes, days = 3) {
   const results = [];
-  const today = new Date();
-  
+  const todayET = getEasternTimeDate();
+
   for (let i = 0; i < days; i++) {
-    const date = new Date(today);
+    const date = new Date(todayET);
     date.setDate(date.getDate() + i);
-    const dateStr = date.toISOString().split('T')[0];
-    
+    const dateStr = formatDateYYYYMMDD(date);
+
     const dayShowtimes = showtimes.by_date[dateStr] || [];
     results.push(...dayShowtimes);
   }
-  
+
   return results;
 }
 
@@ -151,9 +157,12 @@ function filterByTimePreference(results, preference) {
   return results.filter(item => {
     const time = item.showtime?.time || item.showtimes?.[0]?.time;
     if (!time) return true;
-    
-    const hour = parseInt(time.split(':')[0]);
-    
+
+    const parsed = parseTime12Hour(time);
+    if (!parsed) return true;
+
+    const { hour } = parsed;
+
     switch (preference) {
       case 'afternoon':
         return hour >= 12 && hour < 17;
@@ -164,6 +173,35 @@ function filterByTimePreference(results, preference) {
       default:
         return true;
     }
+  });
+}
+
+function filterPastShowtimes(results) {
+  const nowET = getEasternTimeDate();
+  const nowDateStr = formatDateYYYYMMDD(nowET);
+  const nowHour = nowET.getHours();
+  const nowMinute = nowET.getMinutes();
+
+  return results.filter(item => {
+    const showtime = item.showtime || item.showtimes?.[0];
+    if (!showtime?.date || !showtime?.time) return true;
+
+    // If showtime is in the future (different day), keep it
+    if (showtime.date > nowDateStr) return true;
+
+    // If showtime is in the past (different day), filter it out
+    if (showtime.date < nowDateStr) return false;
+
+    // Same day - check the time
+    const parsed = parseTime12Hour(showtime.time);
+    if (!parsed) return true;
+
+    const { hour, minute } = parsed;
+
+    // Compare times
+    if (hour > nowHour) return true;
+    if (hour < nowHour) return false;
+    return minute >= nowMinute;
   });
 }
 
@@ -273,18 +311,21 @@ function formatDate(dateStr) {
 function formatDateForVoice(dateStr) {
   if (!dateStr) return '';
 
-  const date = new Date(dateStr);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Get Eastern Time dates for comparison
+  const todayET = getEasternTimeDate();
+  const todayStr = formatDateYYYYMMDD(todayET);
+
+  const tomorrowET = new Date(todayET);
+  tomorrowET.setDate(tomorrowET.getDate() + 1);
+  const tomorrowStr = formatDateYYYYMMDD(tomorrowET);
 
   // Check if it's today or tomorrow
-  const isToday = dateStr === today.toISOString().split('T')[0];
-  const isTomorrow = dateStr === tomorrow.toISOString().split('T')[0];
+  if (dateStr === todayStr) return 'today';
+  if (dateStr === tomorrowStr) return 'tomorrow';
 
-  if (isToday) return 'today';
-  if (isTomorrow) return 'tomorrow';
-
+  // Format as readable date
+  const [y, m, d] = dateStr.split('-');
+  const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
