@@ -70,18 +70,27 @@ export function getEasternTimeDate() {
 
 /**
  * Formats a datetime string to human-readable time in Eastern Time (America/New_York)
- * @param {string} dateTimeString - ISO datetime string
+ * IMPORTANT: Agile API returns datetimes already in Eastern Time without timezone info
+ * (e.g., "2025-10-14T19:00:00" means 7:00 PM ET, not UTC)
+ * @param {string} dateTimeString - ISO datetime string (already in ET)
  * @returns {string|null} Formatted time (e.g., "7:30 PM") or null if invalid
  */
 export function formatTimeEastern(dateTimeString) {
   if (!dateTimeString) return null;
-  const date = new Date(dateTimeString);
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'America/New_York'  // Force Eastern Time
-  });
+
+  // Extract time components directly from the string since it's already in Eastern Time
+  const match = dateTimeString.match(/T(\d{2}):(\d{2})/);
+  if (!match) return null;
+
+  let hour = parseInt(match[1]);
+  const minute = match[2];
+
+  // Convert to 12-hour format
+  const period = hour >= 12 ? 'PM' : 'AM';
+  if (hour === 0) hour = 12;
+  else if (hour > 12) hour -= 12;
+
+  return `${hour}:${minute} ${period}`;
 }
 
 /**
