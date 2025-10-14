@@ -1,7 +1,7 @@
 // api/showtimes.js
 // ElevenLabs Client Tool endpoint
 import { Redis } from '@upstash/redis';
-import { getEasternTimeDate, getEasternTimeISO } from './utils/timezone.js';
+import { getEasternTimeDate, getEasternTimeISO, formatDateYYYYMMDD, parseTime12Hour } from './utils/timezone.js';
 
 export default async function handler(req, res) {
   // Enable CORS for ElevenLabs
@@ -60,18 +60,12 @@ export default async function handler(req, res) {
       results = getWeekendShowtimes(showtimes);
     } else if (day_type === 'today') {
       const todayET = getEasternTimeDate();
-      const year = todayET.getFullYear();
-      const month = String(todayET.getMonth() + 1).padStart(2, '0');
-      const day = String(todayET.getDate()).padStart(2, '0');
-      const today = `${year}-${month}-${day}`;
+      const today = formatDateYYYYMMDD(todayET);
       results = getShowtimesByDate(showtimes, today);
     } else if (day_type === 'tomorrow') {
       const tomorrowET = getEasternTimeDate();
       tomorrowET.setDate(tomorrowET.getDate() + 1);
-      const year = tomorrowET.getFullYear();
-      const month = String(tomorrowET.getMonth() + 1).padStart(2, '0');
-      const day = String(tomorrowET.getDate()).padStart(2, '0');
-      const tomorrowStr = `${year}-${month}-${day}`;
+      const tomorrowStr = formatDateYYYYMMDD(tomorrowET);
       results = getShowtimesByDate(showtimes, tomorrowStr);
     } else if (date) {
       results = getShowtimesByDate(showtimes, date);
@@ -150,10 +144,7 @@ function getUpcomingShowtimes(showtimes, days = 3) {
   for (let i = 0; i < days; i++) {
     const date = new Date(todayET);
     date.setDate(date.getDate() + i);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    const dateStr = formatDateYYYYMMDD(date);
 
     const dayShowtimes = showtimes.by_date[dateStr] || [];
     results.push(...dayShowtimes);
@@ -167,19 +158,10 @@ function filterByTimePreference(results, preference) {
     const time = item.showtime?.time || item.showtimes?.[0]?.time;
     if (!time) return true;
 
-    // Parse 12-hour format (e.g., "7:00 PM")
-    const match = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!match) return true;
+    const parsed = parseTime12Hour(time);
+    if (!parsed) return true;
 
-    let hour = parseInt(match[1]);
-    const period = match[3].toUpperCase();
-
-    // Convert to 24-hour format
-    if (period === 'PM' && hour !== 12) {
-      hour += 12;
-    } else if (period === 'AM' && hour === 12) {
-      hour = 0;
-    }
+    const { hour } = parsed;
 
     switch (preference) {
       case 'afternoon':
@@ -196,10 +178,7 @@ function filterByTimePreference(results, preference) {
 
 function filterPastShowtimes(results) {
   const nowET = getEasternTimeDate();
-  const nowYear = nowET.getFullYear();
-  const nowMonth = String(nowET.getMonth() + 1).padStart(2, '0');
-  const nowDay = String(nowET.getDate()).padStart(2, '0');
-  const nowDateStr = `${nowYear}-${nowMonth}-${nowDay}`;
+  const nowDateStr = formatDateYYYYMMDD(nowET);
   const nowHour = nowET.getHours();
   const nowMinute = nowET.getMinutes();
 
@@ -214,19 +193,10 @@ function filterPastShowtimes(results) {
     if (showtime.date < nowDateStr) return false;
 
     // Same day - check the time
-    const timeMatch = showtime.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!timeMatch) return true;
+    const parsed = parseTime12Hour(showtime.time);
+    if (!parsed) return true;
 
-    let hour = parseInt(timeMatch[1]);
-    const minute = parseInt(timeMatch[2]);
-    const period = timeMatch[3].toUpperCase();
-
-    // Convert to 24-hour format
-    if (period === 'PM' && hour !== 12) {
-      hour += 12;
-    } else if (period === 'AM' && hour === 12) {
-      hour = 0;
-    }
+    const { hour, minute } = parsed;
 
     // Compare times
     if (hour > nowHour) return true;
@@ -343,17 +313,11 @@ function formatDateForVoice(dateStr) {
 
   // Get Eastern Time dates for comparison
   const todayET = getEasternTimeDate();
-  const year = todayET.getFullYear();
-  const month = String(todayET.getMonth() + 1).padStart(2, '0');
-  const day = String(todayET.getDate()).padStart(2, '0');
-  const todayStr = `${year}-${month}-${day}`;
+  const todayStr = formatDateYYYYMMDD(todayET);
 
   const tomorrowET = new Date(todayET);
   tomorrowET.setDate(tomorrowET.getDate() + 1);
-  const tomorrowYear = tomorrowET.getFullYear();
-  const tomorrowMonth = String(tomorrowET.getMonth() + 1).padStart(2, '0');
-  const tomorrowDay = String(tomorrowET.getDate()).padStart(2, '0');
-  const tomorrowStr = `${tomorrowYear}-${tomorrowMonth}-${tomorrowDay}`;
+  const tomorrowStr = formatDateYYYYMMDD(tomorrowET);
 
   // Check if it's today or tomorrow
   if (dateStr === todayStr) return 'today';

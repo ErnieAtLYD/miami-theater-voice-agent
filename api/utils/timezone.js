@@ -4,6 +4,18 @@
 // All dates and times in this application use Miami's timezone
 
 /**
+ * Formats a date object to YYYY-MM-DD format
+ * @param {Date} date - Date object
+ * @returns {string} YYYY-MM-DD formatted string
+ */
+export function formatDateYYYYMMDD(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Gets the current time in Eastern Time as an ISO string
  * @returns {string} ISO 8601 formatted timestamp in Eastern Time
  */
@@ -39,7 +51,7 @@ export function getEasternTimeISO() {
  * Use formatTimeEastern() for display, not date.getHours().
  * @returns {Date} Date object with ET components in local timezone
  */   
-export function getEasternTimeDate() {
+export function getEasternTimeDate() { 
   const now = new Date();
   // Get Eastern Time components
   const formatter = new Intl.DateTimeFormat('en-US', {
@@ -91,6 +103,31 @@ export function formatTimeEastern(dateTimeString) {
   else if (hour > 12) hour -= 12;
 
   return `${hour}:${minute} ${period}`;
+}
+
+/**
+ * Parses a 12-hour format time string (e.g., "7:30 PM") to 24-hour components
+ * @param {string} timeString - Time string in 12-hour format with AM/PM
+ * @returns {object|null} Object with { hour, minute } in 24-hour format, or null if invalid
+ */
+export function parseTime12Hour(timeString) {
+  if (!timeString) return null;
+
+  const match = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return null;
+
+  let hour = parseInt(match[1]);
+  const minute = parseInt(match[2]);
+  const period = match[3].toUpperCase();
+
+  // Convert to 24-hour format
+  if (period === 'PM' && hour !== 12) {
+    hour += 12;
+  } else if (period === 'AM' && hour === 12) {
+    hour = 0;
+  }
+
+  return { hour, minute };
 }
 
 /**
