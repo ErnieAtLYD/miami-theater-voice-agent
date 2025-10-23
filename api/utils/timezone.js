@@ -3,6 +3,17 @@
 // Timezone utilities for handling Eastern Time (America/New_York)
 // All dates and times in this application use Miami's timezone
 
+const ET_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false
+});
+
 /**
  * Formats a date object to YYYY-MM-DD format
  * @param {Date} date - Date object
@@ -21,18 +32,7 @@ export function formatDateYYYYMMDD(date) {
  */
 export function getEasternTimeISO() {
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
-
-  const parts = formatter.formatToParts(now);
+  const parts = ET_FORMATTER.formatToParts(now);
   const values = {};
   parts.forEach(part => values[part.type] = part.value);
 
@@ -54,18 +54,7 @@ export function getEasternTimeISO() {
 export function getEasternTimeDate() { 
   const now = new Date();
   // Get Eastern Time components
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
-
-  const parts = formatter.formatToParts(now);
+  const parts = ET_FORMATTER.formatToParts(now);
   const get = (type) => parts.find(p => p.type === type).value;
 
   // Create a new Date object with Eastern Time values
@@ -161,13 +150,7 @@ export function isUpcoming(dateString, days = 7) {
 
   // Get actual current date in ET (not subject to UTC conversion issues)
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-  const parts = formatter.formatToParts(now);
+  const parts = ET_FORMATTER.formatToParts(now);
   const get = (type) => parts.find(p => p.type === type).value;
   const todayInET = `${get('year')}-${get('month')}-${get('day')}`;
 
