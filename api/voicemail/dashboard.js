@@ -292,9 +292,6 @@ export default async function handler(req, res) {
     function setupDeleteHandlers(token) {
       const dashboardContent = document.getElementById('dashboardContent');
 
-      // Remove existing listener if any
-      dashboardContent.removeEventListener('click', handleDeleteClick);
-
       // Add event delegation for delete buttons
       dashboardContent.addEventListener('click', async (e) => {
         if (e.target.classList.contains('delete-btn') || e.target.closest('.delete-btn')) {
