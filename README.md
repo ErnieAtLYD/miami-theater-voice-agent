@@ -105,6 +105,7 @@ Password-protected web dashboard for staff to view and manage voicemails.
 - Auto-refresh every 30 seconds
 - Session-based authentication
 - Listen to recordings, view transcriptions, download MP3s
+- Delete voicemails with confirmation dialog
 - Responsive design for mobile/desktop
 
 **Access:**
@@ -146,6 +147,46 @@ curl -H "Authorization: Bearer YOUR_SECRET" \
 curl -H "Authorization: Bearer YOUR_SECRET" \
   "https://your-domain.vercel.app/api/voicemail/list?unlistened_only=true"
 ```
+
+#### DELETE `/api/voicemail/delete`
+
+Delete a voicemail from the system (requires bearer token authentication).
+
+**Authentication:**
+```
+Authorization: Bearer YOUR_STAFF_DASHBOARD_SECRET
+```
+
+**Query Parameters:**
+- `id` - Voicemail ID (RecordingSid) to delete (required)
+
+**Actions:**
+- Removes voicemail from Redis sorted set index
+- Deletes individual voicemail record
+- Returns success confirmation
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "message": "Voicemail deleted successfully",
+  "id": "RE1234567890abcdef"
+}
+```
+
+**Example:**
+```bash
+# Delete a specific voicemail
+curl -X DELETE \
+  -H "Authorization: Bearer YOUR_SECRET" \
+  "https://your-domain.vercel.app/api/voicemail/delete?id=RE1234567890"
+```
+
+**Error Responses:**
+- `400` - Missing voicemail ID
+- `401` - Invalid or missing authentication token
+- `404` - Voicemail not found
+- `500` - Server error during deletion
 
 ## ElevenLabs Voice Agent Integration
 

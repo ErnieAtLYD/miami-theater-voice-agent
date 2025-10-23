@@ -256,6 +256,10 @@ function generateHTMLView(voicemails, total) {
       background: #e0e0e0;
       color: #333;
     }
+    .btn-danger {
+      background: #f44336;
+      color: white;
+    }
     .empty-state {
       text-align: center;
       padding: 60px 20px;
@@ -331,6 +335,7 @@ function generateHTMLView(voicemails, total) {
           <div class="actions">
             <a href="${escapeHtml(vm.recordingUrl)}" class="btn btn-primary" target="_blank">🎧 Listen to Recording</a>
             ${vm.recordingUrl ? `<a href="${escapeHtml(vm.recordingUrl)}.mp3" class="btn btn-secondary" download>⬇️ Download MP3</a>` : ''}
+            <button class="btn btn-danger delete-btn" data-id="${escapeHtml(vm.id)}">🗑️ Delete</button>
           </div>
         </div>
       `).join('')}

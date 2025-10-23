@@ -26,6 +26,7 @@ This is a Vercel-hosted voice agent API for Miami theater showtimes, designed to
 - `api/twilio/recording-status.js` - Handles recording status updates
 - `api/voicemail/list.js` - Staff API/dashboard for viewing voicemails (API + HTML)
 - `api/voicemail/dashboard.js` - Password-protected web dashboard for staff
+- `api/voicemail/delete.js` - Authenticated DELETE endpoint for removing voicemails
 
 **Data Flow:**
 
@@ -44,6 +45,7 @@ This is a Vercel-hosted voice agent API for Miami theater showtimes, designed to
 5. Email notification sent to staff via Resend
 6. Transcription complete → second email with text
 7. Staff accesses via dashboard at `/api/voicemail/list`
+8. Staff can delete voicemails via dashboard to manage storage
 
 ### Data Structure
 

@@ -269,6 +269,9 @@ export default async function handler(req, res) {
             dashboardContent.innerHTML = html;
           }
 
+          // Set up delete button handlers using event delegation
+          setupDeleteHandlers(token);
+
           // Set up auto-refresh
           if (refreshTimer) clearInterval(refreshTimer);
           refreshTimer = setInterval(() => loadDashboard(token), REFRESH_INTERVAL);
@@ -283,6 +286,54 @@ export default async function handler(req, res) {
         console.error('Dashboard load error:', error);
         dashboardContent.innerHTML = '<div class="loading"><p style="color: #c62828;">Error loading dashboard. Please try again.</p></div>';
       }
+    }
+
+    // Set up delete button handlers
+    function setupDeleteHandlers(token) {
+      const dashboardContent = document.getElementById('dashboardContent');
+
+      // Add event delegation for delete buttons
+      dashboardContent.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('delete-btn') || e.target.closest('.delete-btn')) {
+          const btn = e.target.classList.contains('delete-btn') ? e.target : e.target.closest('.delete-btn');
+          const voicemailId = btn.getAttribute('data-id');
+
+          if (!voicemailId) return;
+
+          // Confirm deletion
+          if (!confirm('Are you sure you want to delete this voicemail? This action cannot be undone.')) {
+            return;
+          }
+
+          // Disable button during deletion
+          btn.disabled = true;
+          btn.textContent = 'Deleting...';
+
+          try {
+            const response = await fetch(\`/api/voicemail/delete?id=\${voicemailId}\`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': 'Bearer ' + token
+              }
+            });
+
+            if (response.ok) {
+              // Reload dashboard to show updated list
+              loadDashboard(token);
+            } else {
+              const error = await response.json();
+              alert('Failed to delete voicemail: ' + (error.error || 'Unknown error'));
+              btn.disabled = false;
+              btn.textContent = '🗑️ Delete';
+            }
+          } catch (error) {
+            console.error('Delete error:', error);
+            alert('Failed to delete voicemail. Please try again.');
+            btn.disabled = false;
+            btn.textContent = '🗑️ Delete';
+          }
+        }
+      });
     }
 
     // Auto-focus password field
