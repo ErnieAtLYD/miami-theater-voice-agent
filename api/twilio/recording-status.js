@@ -103,7 +103,8 @@ export default async function handler(req, res) {
         voicemail.recordingSource = RecordingSource;
         voicemail.statusUpdatedAt = new Date().toISOString();
 
-        if (ErrorCode) {
+        // Only log actual errors (ErrorCode 0 means no error)
+        if (ErrorCode && ErrorCode !== '0' && ErrorCode !== 0) {
           voicemail.errorCode = ErrorCode;
           console.error(`Recording error for ${RecordingSid}: ${ErrorCode}`);
         }
