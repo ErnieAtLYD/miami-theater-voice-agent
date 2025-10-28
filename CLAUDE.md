@@ -8,7 +8,10 @@ This is a Vercel-hosted voice agent API for Miami theater showtimes, designed to
 
 ## Key Commands
 
-- `npm test` - Currently returns error (no tests configured)
+- `npm test` - Run all tests (unit + integration)
+- `npm run test:unit` - Run unit tests only
+- `npm run test:integration` - Run integration tests only
+- `npm run test:coverage` - Run tests with coverage report
 - `vercel dev` - Local development with serverless functions
 - `vercel deploy` - Deploy to Vercel platform
 - Deploy: Uses Vercel for hosting (vercel.json configuration present)
@@ -76,12 +79,32 @@ The showtimes API supports:
 
 ### Environment Variables
 
+**Naming Convention & Precedence:**
+
+The application supports multiple environment variable naming conventions for Redis to work seamlessly with different hosting platforms:
+
+- **Vercel KV (Recommended)**: `KV_REST_API_URL` and `KV_REST_API_TOKEN`
+  - Automatically provided by Vercel KV Redis
+  - **Takes precedence** when both naming conventions are present
+- **Upstash Direct (Alternative)**: `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+  - Used as fallback if KV_ variables not set
+  - Useful for local development or non-Vercel deployments
+
+**Important:** If you set environment variables using command line tools, ensure there are no trailing newlines or spaces. Use `printf` instead of `echo` to avoid this:
+```bash
+# Correct
+vercel env add KV_REST_API_URL production < <(printf '%s' "https://...")
+
+# Incorrect (may add newline)
+echo "https://..." | vercel env add KV_REST_API_URL production
+```
+
 **Required for production:**
 - `CRON_SECRET` - Secures the cron endpoint
 - `AGILE_GUID` - Agile WebSales API identifier
-- Upstash Redis credentials:
-  - `UPSTASH_REDIS_REST_URL` or `KV_REST_API_URL` - Redis connection URL
-  - `UPSTASH_REDIS_REST_TOKEN` or `KV_REST_API_TOKEN` - Redis authentication token
+- Upstash Redis credentials (choose one naming convention):
+  - **Preferred:** `KV_REST_API_URL` and `KV_REST_API_TOKEN` (Vercel KV)
+  - **Alternative:** `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (Upstash direct)
 
 **Required for voicemail system:**
 - `TWILIO_ACCOUNT_SID` - Twilio account identifier
@@ -90,6 +113,9 @@ The showtimes API supports:
 - `OCINEMA_EMAIL` or `STAFF_EMAIL` - Email address to receive voicemail notifications
 - `FROM_EMAIL` - Sender email address (optional, defaults to onboarding@resend.dev)
 - `STAFF_DASHBOARD_SECRET` - Secure token for dashboard authentication (required for security)
+  - **Security Note:** Must be a strong, random string (minimum 32 characters recommended)
+  - Used for both API access and dashboard authentication
+  - Generate with: `openssl rand -base64 32`
 - `BASE_URL` - Production URL (e.g., https://miami-theater-voice-agent.vercel.app) for TwiML callbacks
 
 ### Voice Agent Integration
@@ -258,6 +284,26 @@ voiceResponse.record({
 - Data source: Redis sorted set `voicemails:index`
 - Display: Beautiful gradient UI with cards, or JSON API for programmatic access
 - Security: Requires `STAFF_DASHBOARD_SECRET` in Authorization header
+- Rate Limiting: Automatic brute force protection via Redis-backed rate limiting
+
+**Rate Limiting (Authentication):**
+The staff authentication system includes automatic rate limiting to prevent brute force attacks:
+- **Implementation**: Redis-backed tracking with sliding window approach
+- **Configuration**:
+  - 5 failed attempts allowed per IP
+  - 15-minute time window
+  - 15-minute block duration after max attempts
+- **Response**: HTTP 429 (Too Many Requests) with `retryAfter` timestamp
+- **Behavior**:
+  - Gracefully degrades if Redis unavailable (fail-open for availability)
+  - Tracks attempts by IP address (x-forwarded-for, x-real-ip, or socket)
+  - Resets counter on successful authentication
+  - Extends block duration when max attempts reached
+- **Utility Functions**:
+  - `api/utils/rate-limit-auth.js` - Core rate limiting logic
+  - `checkRateLimit(redis, ip)` - Check if IP is rate limited
+  - `recordFailedAttempt(redis, ip)` - Record failed auth attempt
+  - `resetRateLimit(redis, ip)` - Reset on successful auth
 
 ### Development Workflow
 
