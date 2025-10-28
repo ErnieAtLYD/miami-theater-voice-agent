@@ -1,6 +1,6 @@
 // api/cron/ingest-showtimes.js
 // This runs every 30 minutes via Vercel Cron
-import { Redis } from '@upstash/redis';
+import { createRedisClient } from '../utils/redis-client.js';
 import { getEasternTimeISO, formatTimeEastern, getEasternTimeDate, getWeekendDay, isUpcoming } from '../utils/timezone.js';
 
 export default async function handler(req, res) {
@@ -11,12 +11,9 @@ export default async function handler(req, res) {
 
   try {
     console.log('Starting showtime ingestion...');
-    
+
     // Initialize Upstash Redis
-    const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
-    });
+    const redis = createRedisClient();
     
     // Build Agile WebSales Feed URL for O Cinema (prod3 domain)
     const agileUrl = `https://prod3.agileticketing.net/websales/feed.ashx?guid=${process.env.AGILE_GUID}&showslist=true&format=json&v=latest`;
