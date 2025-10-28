@@ -23,22 +23,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Authenticate staff access
-  const authValidation = validateStaffAuth(req);
-  if (!authValidation.isValid) {
-    return res.status(authValidation.statusCode).json({ error: authValidation.error });
-  }
-
   try {
+    // Initialize Redis (needed for both rate limiting and data operations)
+    const redis = createRedisClient();
+
+    // Authenticate staff access with rate limiting
+    const authValidation = await validateStaffAuth(req, redis);
+    if (!authValidation.isValid) {
+      return res.status(authValidation.statusCode).json({ error: authValidation.error });
+    }
+
     // Get voicemail ID from query parameter
     const { id } = req.query;
 
     if (!id) {
       return res.status(400).json({ error: 'Missing voicemail ID' });
     }
-
-    // Initialize Redis
-    const redis = createRedisClient();
 
     // Check if voicemail exists
     const voicemailData = await redis.get(`voicemail:${id}`);

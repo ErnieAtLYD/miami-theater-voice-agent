@@ -24,15 +24,15 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Authenticate staff access
-  const authValidation = validateStaffAuth(req);
-  if (!authValidation.isValid) {
-    return res.status(authValidation.statusCode).json({ error: authValidation.error });
-  }
-
   try {
-    // Initialize Redis
+    // Initialize Redis (needed for both rate limiting and data operations)
     const redis = createRedisClient();
+
+    // Authenticate staff access with rate limiting
+    const authValidation = await validateStaffAuth(req, redis);
+    if (!authValidation.isValid) {
+      return res.status(authValidation.statusCode).json({ error: authValidation.error });
+    }
 
     // Get query parameters
     const { unlistened_only } = req.query;
