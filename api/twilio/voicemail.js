@@ -39,9 +39,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Extract context from the ElevenLabs tool call
-    const { reason, caller_context } = req.body || {};
-
     // Create TwiML response
     const voiceResponse = new twiml.VoiceResponse();
 

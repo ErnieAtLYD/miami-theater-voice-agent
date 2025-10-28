@@ -1,7 +1,7 @@
 // api/twilio/voicemail-callback.js
 // Handles recording completion and sends notifications
-import { Redis } from '@upstash/redis';
-import twilio from 'twilio';
+import { createRedisClient } from '../utils/redis-client.js';
+import { validateTwilioRequest } from '../utils/validate-twilio.js';
 import { sendVoicemailEmail } from '../utils/voicemail-email.js';
 
 // Configure Vercel to parse form data
@@ -23,60 +23,14 @@ export default async function handler(req, res) {
   }
 
   // Validate Twilio webhook signature
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const twilioSignature = req.headers['x-twilio-signature'];
-
-  if (!authToken) {
-    console.error('TWILIO_AUTH_TOKEN not configured');
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
-
-  // Construct the full URL that Twilio used to make the request
-  // Must match exactly what Twilio used for signature generation
-  const protocol = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-
-  // Remove query string from URL for validation - Twilio includes params in body
-  const urlPath = req.url.split('?')[0];
-  const url = `${protocol}://${host}${urlPath}`;
-
-  // Log for debugging
-  console.log('Validating Twilio signature:', {
-    url,
-    protocol,
-    host,
-    hasSignature: !!twilioSignature,
-    bodyKeys: Object.keys(req.body || {}),
-    headers: {
-      'x-forwarded-proto': req.headers['x-forwarded-proto'],
-      'x-forwarded-host': req.headers['x-forwarded-host'],
-      host: req.headers.host
-    }
-  });
-
-  // Validate the request
-  const isValidRequest = twilio.validateRequest(
-    authToken,
-    twilioSignature,
-    url,
-    req.body || {}
-  );
-
-  if (!isValidRequest) {
-    console.error('Invalid Twilio signature', {
-      url,
-      signature: twilioSignature,
-      bodyKeys: Object.keys(req.body || {})
-    });
-    return res.status(403).json({ error: 'Forbidden - Invalid signature' });
+  const validation = validateTwilioRequest(req);
+  if (!validation.isValid) {
+    return res.status(validation.statusCode).json({ error: validation.error });
   }
 
   try {
     // Initialize Redis
-    const redis = new Redis({
-      url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
+    const redis = createRedisClient();
 
     // Extract recording data from Twilio callback
     const {

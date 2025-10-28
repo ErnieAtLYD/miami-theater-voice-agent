@@ -1,6 +1,6 @@
 // api/showtimes.js
 // ElevenLabs Client Tool endpoint
-import { Redis } from '@upstash/redis';
+import { createRedisClient } from './utils/redis-client.js';
 import { getEasternTimeDate, getEasternTimeISO, formatDateYYYYMMDD, parseTime12Hour } from './utils/timezone.js';
 
 export default async function handler(req, res) {
@@ -15,10 +15,7 @@ export default async function handler(req, res) {
 
   try {
     // Initialize Upstash Redis
-    const redis = new Redis({
-      url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
+    const redis = createRedisClient();
 
     // Get query parameters
     const { 
@@ -296,16 +293,6 @@ function getSpecialFormat(showtime) {
   if (showtime?.is_3d) formats.push('3D');
   if (showtime?.is_imax) formats.push('IMAX');
   return formats.join(', ') || null;
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric'
-  });
 }
 
 function formatDateForVoice(dateStr) {
