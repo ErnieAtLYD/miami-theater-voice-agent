@@ -1,6 +1,6 @@
 # Miami Theater Voice Agent
 
-A voice agent API for O Cinema Miami theater showtimes that fetches data from Agile Ticketing Solutions' API and serves it optimized for voice interaction.
+This is a Vercel-hosted voice agent API that provides Miami theater showtimes to ElevenLabs voice agents, with automated data ingestion from Agile WebSales and a Twilio-powered voicemail system for customer messages. The application uses Redis for caching showtime data and storing voicemails, with a staff dashboard for managing customer recordings.
 
 
 
