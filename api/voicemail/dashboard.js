@@ -175,6 +175,7 @@ export default async function handler(req, res) {
     const API_URL = '/api/voicemail/list';
     const REFRESH_INTERVAL = 30000; // 30 seconds
     let refreshTimer = null;
+    let deleteHandlerAttached = false; // Track if delete handler is already set up
 
     // Check if already logged in
     const savedToken = sessionStorage.getItem('voicemail_token');
@@ -228,6 +229,7 @@ export default async function handler(req, res) {
     document.getElementById('logoutBtn').addEventListener('click', () => {
       sessionStorage.removeItem('voicemail_token');
       if (refreshTimer) clearInterval(refreshTimer);
+      deleteHandlerAttached = false; // Reset flag on logout
       document.getElementById('loginContainer').style.display = 'flex';
       document.getElementById('dashboardContainer').classList.remove('show');
       document.getElementById('password').value = '';
@@ -269,8 +271,11 @@ export default async function handler(req, res) {
             dashboardContent.innerHTML = html;
           }
 
-          // Set up delete button handlers using event delegation
-          setupDeleteHandlers(token);
+          // Set up delete button handlers using event delegation (only once)
+          if (!deleteHandlerAttached) {
+            setupDeleteHandlers(token);
+            deleteHandlerAttached = true;
+          }
 
           // Set up auto-refresh
           if (refreshTimer) clearInterval(refreshTimer);
