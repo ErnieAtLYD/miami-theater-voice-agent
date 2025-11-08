@@ -1,0 +1,129 @@
+sequenceDiagram
+    participant Caller as Caller
+    participant Twilio as Twilio Phone System
+    participant TwiML as /api/twilio/voicemail
+    participant Callback as /api/twilio/voicemail-callback
+    participant Transcribe as /api/twilio/voicemail-transcription
+    participant Status as /api/twilio/recording-status
+    participant Redis as Upstash Redis
+    participant Resend as Resend Email Service
+    participant Staff as Staff Member
+
+    %% Initial Call Flow
+    Note over Caller,TwiML: Call Initiation & TwiML Generation
+
+    Caller->>Twilio: Dials theater phone number
+    activate Twilio
+
+    Twilio->>TwiML: POST request<br/>(configured webhook URL)
+    activate TwiML
+
+    TwiML->>TwiML: Validate Twilio signature<br/>(TWILIO_AUTH_TOKEN)
+
+    TwiML->>TwiML: Generate TwiML response:<br/><Say>Leave message after beep</Say><br/><Record maxLength="180"<br/>finishOnKey="*"<br/>transcribe="true"<br/>action="/callback"<br/>transcribeCallback="/transcription"/>
+
+    TwiML-->>Twilio: 200 OK<br/>Content-Type: text/xml<br/>TwiML instructions
+    deactivate TwiML
+
+    Twilio->>Twilio: Play greeting message
+    Twilio->>Twilio: Play beep
+
+    Caller->>Twilio: Speaks voicemail message<br/>(up to 3 minutes)
+
+    alt Caller presses * key
+        Twilio->>Twilio: Stop recording (finish key)
+    else Max duration reached
+        Twilio->>Twilio: Stop recording (180 seconds)
+    else Caller hangs up
+        Twilio->>Twilio: Stop recording (silence detected)
+    end
+
+    %% Recording Complete Flow
+    Note over Callback,Resend: Recording Complete & Initial Notification
+
+    Twilio->>Callback: POST recording data<br/>RecordingSid, RecordingUrl,<br/>Duration, From, To, CallSid
+    activate Callback
+
+    Callback->>Callback: Validate Twilio signature
+
+    Callback->>Callback: Parse recording data<br/>Extract metadata
+
+    Callback->>Redis: ZADD voicemails:index<br/>score: timestamp<br/>member: RecordingSid
+    Redis-->>Callback: OK
+
+    Callback->>Redis: SET voicemail:{RecordingSid}<br/>JSON: {id, recordingUrl, duration,<br/>from, to, callSid, createdAt,<br/>listened: false}
+    Redis-->>Callback: OK
+
+    Callback->>Resend: POST /emails<br/>To: STAFF_EMAIL<br/>Subject: New Voicemail<br/>Body: Recording link, caller info
+    activate Resend
+    Resend-->>Callback: Email queued
+    deactivate Resend
+
+    Callback-->>Twilio: 200 OK<br/>TwiML: <Hangup/>
+    deactivate Callback
+
+    Resend->>Staff: Email: "New Voicemail Received"<br/>📞 From: +1234567890<br/>⏱️ Duration: 45s<br/>🔗 Recording Link
+    activate Staff
+    Staff->>Staff: Reads email notification
+    deactivate Staff
+
+    %% Transcription Flow
+    Note over Transcribe,Resend: Transcription Complete & Second Notification
+
+    Twilio->>Twilio: Process transcription<br/>(asynchronous, 1-5 min delay)
+
+    Twilio->>Transcribe: POST transcription data<br/>RecordingSid,<br/>TranscriptionText,<br/>TranscriptionStatus
+    activate Transcribe
+
+    Transcribe->>Transcribe: Validate Twilio signature
+
+    Transcribe->>Redis: GET voicemail:{RecordingSid}
+    Redis-->>Transcribe: Existing voicemail JSON
+
+    alt TranscriptionStatus === 'completed'
+        Transcribe->>Transcribe: Update voicemail object<br/>Add transcription field<br/>Set transcriptionStatus: 'completed'
+
+        Transcribe->>Redis: SET voicemail:{RecordingSid}<br/>Updated JSON with transcription
+        Redis-->>Transcribe: OK
+
+        Transcribe->>Resend: POST /emails<br/>To: STAFF_EMAIL<br/>Subject: Voicemail Transcription<br/>Body: Full transcription text
+        activate Resend
+        Resend-->>Transcribe: Email queued
+        deactivate Resend
+
+        Resend->>Staff: Email: "Voicemail Transcription Ready"<br/>📝 Transcription:<br/>"Hello, I'd like to inquire..."
+        activate Staff
+        Staff->>Staff: Reads transcription
+        deactivate Staff
+
+    else TranscriptionStatus === 'failed'
+        Transcribe->>Transcribe: Update voicemail object<br/>Set transcriptionStatus: 'failed'<br/>No transcription text
+
+        Transcribe->>Redis: SET voicemail:{RecordingSid}<br/>Updated JSON (failed status)
+        Redis-->>Transcribe: OK
+
+        Note over Transcribe,Resend: No email sent for failures<br/>Staff sees warning in dashboard
+
+    end
+
+    Transcribe-->>Twilio: 200 OK
+    deactivate Transcribe
+
+    %% Recording Status Updates (Optional)
+    Note over Status,Redis: Recording Status Updates (Optional)
+
+    Twilio->>Status: POST status update<br/>(in-progress, completed, absent)
+    activate Status
+
+    Status->>Status: Validate Twilio signature
+
+    Status->>Redis: Update recording status<br/>(if needed)
+    Redis-->>Status: OK
+
+    Status-->>Twilio: 200 OK
+    deactivate Status
+
+    deactivate Twilio
+
+    %% Styling
+    Note over Caller,Staff: Caller leaves message → Staff receives 2 emails<br/>1) Immediate with recording link<br/>2) Follow-up with transcription

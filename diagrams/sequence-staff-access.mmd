@@ -1,0 +1,147 @@
+sequenceDiagram
+    participant Staff as Staff Member
+    participant Browser as Web Browser
+    participant Dashboard as /api/voicemail/dashboard
+    participant ListAPI as /api/voicemail/list
+    participant Redis as Upstash Redis
+    participant Twilio as Twilio API
+
+    %% Dashboard Access Flow
+    Note over Staff,Dashboard: Web Dashboard Access (Password Protected)
+
+    Staff->>Browser: Navigate to<br/>/api/voicemail/dashboard
+    activate Browser
+
+    Browser->>Dashboard: GET /api/voicemail/dashboard
+    activate Dashboard
+
+    alt No Password Provided
+        Dashboard-->>Browser: 401 Unauthorized<br/>{"error": "Password required"}
+        Browser->>Staff: Show password prompt
+        Staff->>Browser: Enter password
+        Browser->>Dashboard: GET /api/voicemail/dashboard<br/>?password=secret_token
+    end
+
+    Dashboard->>Dashboard: Extract client IP address
+
+    Dashboard->>Redis: Check rate limit<br/>GET rate:auth:{IP}
+    activate Redis
+    Redis-->>Dashboard: Attempt count (if exists)
+    deactivate Redis
+
+    alt Rate Limit Exceeded (>5 in 15 min)
+        Dashboard-->>Browser: 429 Too Many Requests<br/>{"error": "Too many attempts"}
+        Browser->>Staff: Show lockout message<br/>(15 min cooldown)
+    else Password Check
+        Dashboard->>Dashboard: Verify password matches<br/>STAFF_DASHBOARD_SECRET
+
+        alt Invalid Password
+            Dashboard->>Redis: Record failed attempt<br/>INCR rate:auth:{IP}<br/>EXPIRE 15 min
+            Dashboard-->>Browser: 401 Unauthorized<br/>{"error": "Invalid password"}
+            Browser->>Staff: Show error message
+        else Valid Password
+            Dashboard->>Redis: Reset rate limit<br/>DEL rate:auth:{IP}
+        Dashboard->>Redis: ZREVRANGE voicemails:index<br/>0 -1 WITHSCORES
+        activate Redis
+        Redis-->>Dashboard: Array of RecordingSids<br/>with timestamps
+        deactivate Redis
+
+        loop For each RecordingSid
+            Dashboard->>Redis: GET voicemail:{RecordingSid}
+            Redis-->>Dashboard: Voicemail JSON object
+        end
+
+        Dashboard->>Dashboard: Sort by timestamp (newest first)<br/>Format data for display
+
+        Dashboard->>Dashboard: Generate HTML with:<br/>- Beautiful gradient UI<br/>- Voicemail cards<br/>- Audio players<br/>- Transcription state indicators:<br/>  ✅ Completed (gray bg)<br/>  ⏳ Pending (gray text + elapsed)<br/>  ⚠️ Failed (yellow warning)<br/>  ⏱️ Timeout (yellow warning)<br/>- Auto-refresh (30s)
+
+        end
+    end
+
+        Dashboard-->>Browser: 200 OK<br/>Content-Type: text/html<br/>Complete dashboard HTML
+        deactivate Dashboard
+
+        Browser->>Staff: Display voicemail dashboard<br/>with cards and controls
+        deactivate Browser
+    end
+
+    %% Auto-refresh mechanism
+    Note over Browser,Dashboard: Auto-Refresh Every 30 Seconds
+
+    loop Every 30 seconds
+        Browser->>Dashboard: GET /api/voicemail/dashboard<br/>?password=secret_token
+        Dashboard->>Redis: Fetch latest voicemails
+        Redis-->>Dashboard: Updated voicemail data
+        Dashboard-->>Browser: Updated HTML
+        Browser->>Browser: Re-render page
+    end
+
+    %% API Access Flow
+    Note over Staff,ListAPI: API Access (Bearer Token Authentication)
+
+    Staff->>Browser: Make API request<br/>curl with Authorization header
+    Browser->>ListAPI: GET /api/voicemail/list<br/>Authorization: Bearer {STAFF_DASHBOARD_SECRET}
+    activate ListAPI
+
+    ListAPI->>ListAPI: Verify Authorization header<br/>Extract bearer token
+
+    ListAPI->>Redis: Check rate limit for IP<br/>GET rate:auth:{IP}
+    activate Redis
+    Redis-->>ListAPI: Attempt count
+    deactivate Redis
+
+    alt Rate Limit Exceeded (>5 attempts in 15 min)
+        ListAPI-->>Browser: 429 Too Many Requests<br/>{"error": "Rate limit exceeded", "retryAfter": timestamp}
+    else Invalid Token
+        ListAPI->>Redis: Record failed attempt<br/>INCR rate:auth:{IP}<br/>EXPIRE 15 min
+        ListAPI-->>Browser: 401 Unauthorized<br/>{"error": "Invalid token"}
+    else Valid Token
+        ListAPI->>Redis: Reset rate limit<br/>DEL rate:auth:{IP}
+        ListAPI->>Redis: ZREVRANGE voicemails:index<br/>0 -1 WITHSCORES
+        activate Redis
+        Redis-->>ListAPI: Array of RecordingSids
+        deactivate Redis
+
+        loop For each RecordingSid
+            ListAPI->>Redis: GET voicemail:{RecordingSid}
+            Redis-->>ListAPI: Voicemail JSON object
+        end
+
+        ListAPI->>ListAPI: Sort by timestamp<br/>Detect transcription states:<br/>- completed: has transcription<br/>- failed: transcriptionStatus='failed'<br/>- timeout: >10 min, no transcription<br/>- pending: <10 min, no transcription
+
+        alt Accept: application/json
+            ListAPI-->>Browser: 200 OK<br/>Content-Type: application/json<br/>Array of voicemail objects
+        else Accept: text/html or default
+            ListAPI->>ListAPI: Generate simple HTML list
+            ListAPI-->>Browser: 200 OK<br/>Content-Type: text/html<br/>Basic voicemail list
+        end
+        deactivate ListAPI
+
+        Browser->>Staff: Display voicemails<br/>(JSON or HTML)
+    end
+
+    %% Listen to Recording
+    Note over Staff,Twilio: Playing Voicemail Recording
+
+    Staff->>Browser: Click play on voicemail card
+    Browser->>Browser: HTML5 Audio Player<br/>loads recording URL
+
+    Browser->>Twilio: GET {recordingUrl}.mp3<br/>Direct Twilio media URL
+    activate Twilio
+    Twilio-->>Browser: Audio stream (MP3)
+    deactivate Twilio
+
+    Browser->>Browser: Play audio in browser
+
+    %% Mark as Listened (Future Enhancement)
+    Note over Staff,Redis: Mark as Listened (Optional Future Feature)
+
+    Staff->>Browser: Mark as listened
+    Browser->>ListAPI: PATCH /api/voicemail/{RecordingSid}<br/>{"listened": true}
+    ListAPI->>Redis: Update voicemail:{RecordingSid}<br/>Set listened: true
+    Redis-->>ListAPI: OK
+    ListAPI-->>Browser: 200 OK
+    Browser->>Browser: Update UI (visual indicator)
+
+    %% Styling
+    Note over Staff,Twilio: Dashboard auto-refreshes every 30s<br/>API supports both JSON and HTML responses<br/>All access secured with STAFF_DASHBOARD_SECRET

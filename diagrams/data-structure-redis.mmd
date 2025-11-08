@@ -1,0 +1,93 @@
+graph TB
+    %% Redis Database Structure
+    subgraph Redis["Upstash Redis Storage"]
+        %% Showtimes Keys
+        subgraph ShowtimesData["Showtimes Data"]
+            CurrentKey["Key: showtimes:current<br/>Type: String (JSON)<br/>TTL: 7200s (2 hours)"]
+            UpdateKey["Key: showtimes:last_updated<br/>Type: String<br/>Value: ISO timestamp"]
+        end
+
+        %% Voicemail Keys
+        subgraph VoicemailData["Voicemail Data"]
+            IndexKey["Key: voicemails:index<br/>Type: Sorted Set (ZSET)<br/>Score: Unix timestamp<br/>Members: RecordingSids"]
+            VoicemailKeys["Keys: voicemail:{RecordingSid}<br/>Type: String (JSON)<br/>One per voicemail<br/>No TTL (persistent)"]
+        end
+    end
+
+    %% Showtimes Data Structure
+    subgraph ShowtimesJSON["showtimes:current JSON Structure"]
+        Movies["movies: Array<br/>- Complete list of all movies<br/>- Each with showtimes array"]
+        ByDate["by_date: Object<br/>- Keys: YYYY-MM-DD<br/>- Values: Movies for that date"]
+        Weekend["weekend: Array<br/>- Pre-filtered Fri/Sat/Sun<br/>- Next weekend's movies"]
+        Upcoming["upcoming: Array<br/>- Next 7 days<br/>- All upcoming movies"]
+
+        MovieDetail["Movie Object:<br/>{<br/>  title: string,<br/>  rating: string,<br/>  runtime: number,<br/>  format: string,<br/>  showtimes: [{<br/>    date: YYYY-MM-DD,<br/>    time: HH:MM AM/PM,<br/>    theater: string,<br/>    summary: string<br/>  }]<br/>}"]
+    end
+
+    %% Voicemail Data Structure
+    subgraph VoicemailJSON["voicemail:{RecordingSid} JSON Structure"]
+        VMFields["Voicemail Object:<br/>{<br/>  id: RecordingSid,<br/>  recordingUrl: string,<br/>  duration: number (seconds),<br/>  from: phone number,<br/>  to: phone number,<br/>  callSid: string,<br/>  transcription: string | null,<br/>  transcriptionStatus: string,<br/>  createdAt: ISO timestamp,<br/>  listened: boolean<br/>}"]
+    end
+
+    %% Index Structure
+    subgraph IndexStructure["voicemails:index ZSET Structure"]
+        ZSetExample["Sorted Set (newest first):<br/><br/>Score: 1704067200 → Member: RE123abc<br/>Score: 1704063600 → Member: RE456def<br/>Score: 1704060000 → Member: RE789ghi<br/><br/>Commands:<br/>ZREVRANGE voicemails:index 0 -1<br/>(Returns newest to oldest)"]
+    end
+
+    %% Data Operations
+    subgraph Operations["Common Redis Operations"]
+        Write["Write Operations:<br/><br/>Showtimes:<br/>SETEX showtimes:current 7200 {JSON}<br/>SET showtimes:last_updated {timestamp}<br/><br/>Voicemail:<br/>ZADD voicemails:index {timestamp} {RecordingSid}<br/>SET voicemail:{RecordingSid} {JSON}"]
+
+        Read["Read Operations:<br/><br/>Showtimes:<br/>GET showtimes:current<br/>GET showtimes:last_updated<br/><br/>Voicemail:<br/>ZREVRANGE voicemails:index 0 -1<br/>GET voicemail:{RecordingSid}<br/>ZCARD voicemails:index (count)"]
+
+        Update["Update Operations:<br/><br/>Showtimes:<br/>Auto-expire via TTL<br/>Overwrite on next cron run<br/><br/>Voicemail:<br/>GET → Modify → SET<br/>(for transcription updates,<br/>listened status)"]
+    end
+
+    %% Example Data
+    subgraph Examples["Example Data"]
+        ShowtimeExample["Example Showtime:<br/>{<br/>  'title': 'The Substance',<br/>  'rating': 'R',<br/>  'runtime': 140,<br/>  'format': 'IMAX, 3D',<br/>  'showtimes': [{<br/>    'date': '2024-01-15',<br/>    'time': '7:30 PM',<br/>    'theater': 'O Cinema South Beach',<br/>    'summary': 'The Substance is showing<br/>              on Monday, January 15th<br/>              at 7:30 PM in O Cinema<br/>              South Beach'<br/>  }]<br/>}"]
+
+        VoicemailExample["Example Voicemail:<br/>{<br/>  'id': 'RExxxxxxxxxxxxx',<br/>  'recordingUrl': 'https://api.twilio.com/...',<br/>  'duration': 45,<br/>  'from': '+13051234567',<br/>  'to': '+13057654321',<br/>  'callSid': 'CAxxxxxxxxxxxxx',<br/>  'transcription': 'Hello, I would like<br/>                   to inquire about...',<br/>  'transcriptionStatus': 'completed',<br/>  'createdAt': '2024-01-15T19:30:00Z',<br/>  'listened': false<br/>}"]
+    end
+
+    %% Connections
+    CurrentKey --> Movies
+    CurrentKey --> ByDate
+    CurrentKey --> Weekend
+    CurrentKey --> Upcoming
+
+    Movies --> MovieDetail
+    ByDate --> MovieDetail
+    Weekend --> MovieDetail
+    Upcoming --> MovieDetail
+
+    VoicemailKeys --> VMFields
+    IndexKey --> ZSetExample
+
+    %% Operation Connections
+    Write -.-> CurrentKey
+    Write -.-> UpdateKey
+    Write -.-> IndexKey
+    Write -.-> VoicemailKeys
+
+    Read -.-> CurrentKey
+    Read -.-> IndexKey
+    Read -.-> VoicemailKeys
+
+    Update -.-> CurrentKey
+    Update -.-> VoicemailKeys
+
+    %% Examples
+    MovieDetail -.-> ShowtimeExample
+    VMFields -.-> VoicemailExample
+
+    %% Styling
+    classDef storage fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef structure fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef operation fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef example fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+
+    class Redis,ShowtimesData,VoicemailData storage
+    class ShowtimesJSON,VoicemailJSON,IndexStructure,CurrentKey,UpdateKey,IndexKey,VoicemailKeys,Movies,ByDate,Weekend,Upcoming,MovieDetail,VMFields,ZSetExample structure
+    class Operations,Write,Read,Update operation
+    class Examples,ShowtimeExample,VoicemailExample example

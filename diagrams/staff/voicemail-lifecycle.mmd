@@ -1,0 +1,65 @@
+sequenceDiagram
+    participant Caller as 📞 Caller
+    participant Phone as Twilio<br/>Phone System
+    participant System as Voicemail<br/>System
+    participant Email as 📧 Email
+    participant Staff as 👤 Staff Member
+    participant Dashboard as 🖥️ Web<br/>Dashboard
+
+    Note over Caller,Phone: Customer Leaves Message
+
+    Caller->>Phone: Calls theater number
+    Phone->>Caller: "Please leave a message<br/>after the beep"
+    Phone->>Phone: 🔴 Recording...
+    Caller->>Phone: Speaks message<br/>(up to 3 minutes)
+    Caller->>Phone: Presses * key<br/>or hangs up
+
+    Note over Phone,System: System Processes Recording
+
+    Phone->>System: Save recording +<br/>start transcription
+    System->>System: Store in database
+
+    Note over System,Staff: Immediate Notification
+
+    System->>Email: Send Email 1:<br/>"New Voicemail"
+    Email->>Staff: 📧 Immediate email<br/>✓ Caller number<br/>✓ Duration<br/>✓ Recording link<br/>⏳ Transcription pending
+
+    Note over Phone,System: Transcription Processing (30s - 5 min)
+
+    Phone->>Phone: AI transcribes audio...
+
+    alt Transcription Succeeds
+        Phone->>System: ✅ Transcription complete
+        System->>Email: Send Email 2:<br/>"Transcription Ready"
+        Email->>Staff: 📧 Follow-up email<br/>✓ Full transcription text
+    else Transcription Fails
+        Phone->>System: ❌ Transcription failed
+        Note over System,Email: No second email sent
+    end
+
+    Note over Staff,Dashboard: Staff Reviews Voicemail
+
+    Staff->>Dashboard: Log into dashboard
+    Dashboard->>System: Get voicemails
+    System->>Dashboard: Return list
+    Dashboard->>Staff: Show voicemail cards
+
+    alt Read Transcription
+        Staff->>Staff: 📝 Read transcription text
+    else Listen to Audio
+        Staff->>Dashboard: Click "Listen"
+        Dashboard->>Phone: Request recording
+        Phone->>Staff: 🎧 Stream audio
+    end
+
+    Note over Staff,Dashboard: Staff Takes Action
+
+    alt Follow Up Needed
+        Staff->>Staff: Note phone number
+        Staff->>Caller: Call customer back
+    else Complete
+        Staff->>Dashboard: Delete voicemail
+        Dashboard->>System: Remove from database
+    end
+
+    Note over Caller,Dashboard: Complete workflow from call to resolution

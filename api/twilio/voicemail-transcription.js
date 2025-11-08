@@ -47,7 +47,7 @@ export default async function handler(req, res) {
       RecordingSid
     });
 
-    if (TranscriptionStatus === 'completed' && RecordingSid) {
+    if (RecordingSid) {
       // Retrieve existing voicemail record
       const voicemailData = await redis.get(`voicemail:${RecordingSid}`);
 
@@ -56,27 +56,37 @@ export default async function handler(req, res) {
           ? JSON.parse(voicemailData)
           : voicemailData;
 
-        // Update with transcription
-        voicemail.transcription = TranscriptionText;
-        voicemail.transcriptionSid = TranscriptionSid;
-        voicemail.transcriptionUrl = TranscriptionUrl;
-        voicemail.transcriptionUpdatedAt = new Date().toISOString();
+        if (TranscriptionStatus === 'completed') {
+          // Update with transcription
+          voicemail.transcription = TranscriptionText;
+          voicemail.transcriptionSid = TranscriptionSid;
+          voicemail.transcriptionUrl = TranscriptionUrl;
+          voicemail.transcriptionStatus = 'completed';
+          voicemail.transcriptionUpdatedAt = new Date().toISOString();
+
+          console.log(`Transcription added to voicemail ${RecordingSid}`);
+
+          // Optionally send updated email notification with transcription
+          if (process.env.RESEND_API_KEY && process.env.STAFF_EMAIL && TranscriptionText) {
+            try {
+              await sendVoicemailEmail(voicemail, 'transcription');
+            } catch (emailError) {
+              console.error('Failed to send transcription email:', emailError);
+            }
+          }
+        } else if (TranscriptionStatus === 'failed') {
+          // Mark transcription as failed
+          voicemail.transcriptionStatus = 'failed';
+          voicemail.transcriptionSid = TranscriptionSid;
+          voicemail.transcriptionUpdatedAt = new Date().toISOString();
+
+          console.warn(`Transcription failed for voicemail ${RecordingSid}`);
+          // No email sent per user preference - dashboard only notification
+        }
 
         // Save updated voicemail
         await redis.set(`voicemail:${RecordingSid}`, JSON.stringify(voicemail));
 
-        console.log(`Transcription added to voicemail ${RecordingSid}`);
-
-        // Optionally send updated email notification with transcription
-        if (process.env.RESEND_API_KEY && process.env.STAFF_EMAIL && TranscriptionText) {
-          try {
-            await sendVoicemailEmail(voicemail, 'transcription');
-          } catch (emailError) {
-            console.error('Failed to send transcription email:', emailError);
-          }
-        }
-
-      
       } else {
         console.warn(`Voicemail ${RecordingSid} not found for transcription update`);
       }

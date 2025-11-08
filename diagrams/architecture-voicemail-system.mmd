@@ -1,0 +1,129 @@
+graph TB
+    subgraph External["External Services"]
+        Caller[📞 Caller<br/>Customer Phone]
+        TwilioPhone[Twilio Phone System<br/>Voice & Recording]
+        TwilioAPI[Twilio API<br/>Media Storage]
+        ResendAPI[Resend API<br/>Email Service]
+    end
+
+    subgraph Vercel["Vercel Serverless Functions"]
+        subgraph TwilioEndpoints["Twilio Webhook Endpoints"]
+            VMEndpoint[/api/twilio/voicemail<br/>TwiML Generator]
+            VMCallback[/api/twilio/voicemail-callback<br/>Recording Complete Handler]
+            VMTranscribe[/api/twilio/voicemail-transcription<br/>Transcription Handler]
+            VMRecStatus[/api/twilio/recording-status<br/>Status Update Handler]
+        end
+
+        subgraph StaffEndpoints["Staff Access Endpoints"]
+            Dashboard[/api/voicemail/dashboard<br/>Web UI - Password Auth]
+            ListAPI[/api/voicemail/list<br/>API - Bearer Token Auth]
+            DeleteAPI[/api/voicemail/delete<br/>DELETE - Bearer Token Auth]
+        end
+
+        subgraph Utils["Shared Utilities"]
+            RedisClient[Redis Client<br/>Connection Manager]
+            TwilioValidator[Twilio Signature<br/>Validator]
+            StaffAuth[Staff Authentication<br/>+ Rate Limiting]
+            EmailUtil[Email Notification<br/>Builder]
+        end
+    end
+
+    subgraph DataStorage["Data Storage"]
+        Redis[(Upstash Redis<br/>HTTP REST API)]
+
+        subgraph RedisData["Redis Data Structures"]
+            VMIndex[voicemails:index<br/>Sorted Set by timestamp]
+            VMRecord[voicemail:{RecordingSid}<br/>JSON Document]
+            RateLimit[rate:auth:{IP}<br/>Rate Limit Counter]
+        end
+    end
+
+    subgraph Staff["Staff Interface"]
+        Browser[🖥️ Web Browser<br/>Dashboard UI]
+        EmailClient[📧 Email Client<br/>Notifications]
+    end
+
+    %% Call Flow
+    Caller -->|1. Dials number| TwilioPhone
+    TwilioPhone -->|2. POST webhook| VMEndpoint
+    VMEndpoint -->|3. TwiML instructions| TwilioPhone
+    TwilioPhone -->|4. Record audio| TwilioPhone
+
+    %% Recording Complete Flow
+    TwilioPhone -->|5. POST recording data| VMCallback
+    VMCallback -->|Validate signature| TwilioValidator
+    VMCallback -->|Store voicemail| RedisClient
+    RedisClient -->|ZADD + SET| VMIndex
+    RedisClient -->|SET JSON| VMRecord
+    VMCallback -->|Send email| EmailUtil
+    EmailUtil -->|POST /emails| ResendAPI
+    ResendAPI -->|Deliver| EmailClient
+
+    %% Transcription Flow
+    TwilioPhone -->|6. POST transcription<br/>(async, 1-5 min)| VMTranscribe
+    VMTranscribe -->|Validate signature| TwilioValidator
+    VMTranscribe -->|Get voicemail| RedisClient
+    RedisClient -->|GET| VMRecord
+
+    VMTranscribe -->|7a. Update status| VMTranscribe
+    Note7a[TranscriptionStatus:<br/>completed/failed]
+    VMTranscribe -.->|Check status| Note7a
+
+    VMTranscribe -->|7b. Save update| RedisClient
+    RedisClient -->|SET updated JSON| VMRecord
+
+    VMTranscribe -->|7c. Email if completed| EmailUtil
+    EmailUtil -->|POST /emails| ResendAPI
+    ResendAPI -->|Deliver transcription| EmailClient
+
+    %% Recording Status Updates
+    TwilioPhone -->|8. POST status| VMRecStatus
+    VMRecStatus -->|Validate| TwilioValidator
+    VMRecStatus -->|Update if needed| RedisClient
+
+    %% Staff Dashboard Access
+    Browser -->|9. GET /dashboard| Dashboard
+    Dashboard -->|Authenticate| StaffAuth
+    StaffAuth -->|Check rate limit| RedisClient
+    RedisClient -->|GET counter| RateLimit
+    StaffAuth -->|Verify password| StaffAuth
+    Dashboard -->|Fetch voicemails| RedisClient
+    RedisClient -->|ZREVRANGE| VMIndex
+    RedisClient -->|GET multiple| VMRecord
+    Dashboard -->|Render HTML| Browser
+
+    %% Staff API Access
+    Browser -->|10. GET /list| ListAPI
+    ListAPI -->|Authenticate| StaffAuth
+    StaffAuth -->|Rate limit check| RedisClient
+    ListAPI -->|Fetch data| RedisClient
+    ListAPI -->|JSON/HTML| Browser
+
+    %% Playback
+    Browser -->|11. Click play| TwilioAPI
+    TwilioAPI -->|Stream MP3| Browser
+
+    %% Delete
+    Browser -->|12. DELETE request| DeleteAPI
+    DeleteAPI -->|Authenticate| StaffAuth
+    DeleteAPI -->|Remove data| RedisClient
+    RedisClient -->|ZREM + DEL| VMIndex
+    RedisClient -->|DEL| VMRecord
+
+    %% Styling
+    classDef external fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
+    classDef endpoint fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
+    classDef staff fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
+    classDef storage fill:#fff3e0,stroke:#f57c00,color:#e65100
+    classDef util fill:#fce4ec,stroke:#c2185b,color:#880e4f
+
+    class Caller,TwilioPhone,TwilioAPI,ResendAPI external
+    class VMEndpoint,VMCallback,VMTranscribe,VMRecStatus,Dashboard,ListAPI,DeleteAPI endpoint
+    class Browser,EmailClient,Staff staff
+    class Redis,VMIndex,VMRecord,RateLimit storage
+    class RedisClient,TwilioValidator,StaffAuth,EmailUtil util
+
+    %% Environment Variables Required
+    note1[ENV VARS REQUIRED:<br/>TWILIO_ACCOUNT_SID<br/>TWILIO_AUTH_TOKEN<br/>RESEND_API_KEY<br/>STAFF_EMAIL<br/>STAFF_DASHBOARD_SECRET<br/>KV_REST_API_URL<br/>KV_REST_API_TOKEN<br/>BASE_URL]
+    note1 -.->|Required for| TwilioEndpoints
+    note1 -.->|Required for| StaffEndpoints

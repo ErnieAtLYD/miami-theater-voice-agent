@@ -245,7 +245,7 @@ describe('Voicemail Transcription Callback (Integration Test)', () => {
     expect(emailSendSpy).not.toHaveBeenCalled();
   });
 
-  test('skips transcription update when status is not completed', async () => {
+  test('handles failed transcription status', async () => {
     // Mock dependencies
     jest.unstable_mockModule('@upstash/redis', () => ({
       Redis: jest.fn(() => mockRedis)
@@ -301,13 +301,15 @@ describe('Voicemail Transcription Callback (Integration Test)', () => {
     // Should return 200
     expect(res._getStatusCode()).toBe(200);
 
-    // Voicemail should NOT be updated (transcription still null)
+    // Voicemail should be updated with failure status
     const voicemailAfter = await mockRedis.get(`voicemail:${recordingSid}`);
     const voicemailData = JSON.parse(voicemailAfter);
     expect(voicemailData.transcription).toBeNull();
-    expect(voicemailData.transcriptionSid).toBeUndefined();
+    expect(voicemailData.transcriptionStatus).toBe('failed');
+    expect(voicemailData.transcriptionSid).toBe('TR9876543210fedcba9876543210fedcba');
+    expect(voicemailData.transcriptionUpdatedAt).toBeDefined();
 
-    // No email sent
+    // No email sent (per user preference - dashboard only)
     expect(emailSendSpy).not.toHaveBeenCalled();
   });
 

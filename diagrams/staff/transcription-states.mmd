@@ -1,0 +1,75 @@
+stateDiagram-v2
+    [*] --> Recording: Caller finishes<br/>message
+
+    Recording --> Pending: Recording saved<br/>⏳ Processing starts
+
+    note right of Pending
+        ⏳ Transcription processing...
+        (X minutes ago)
+
+        Gray text, italicized
+        Shows elapsed time
+    end note
+
+    Pending --> Completed: Transcription<br/>succeeds
+    Pending --> Failed: Transcription<br/>service fails
+    Pending --> Timeout: 10 minutes<br/>elapsed
+
+    note right of Completed
+        ✅ TRANSCRIPTION TEXT SHOWN
+
+        "Hello, I'd like to inquire
+        about showtimes for..."
+
+        Light gray background
+        Full transcription in quotes
+
+        Staff Action: Read text
+    end note
+
+    note right of Failed
+        ⚠️ Transcription unavailable
+
+        Twilio was unable to
+        transcribe this recording.
+        Please listen to the audio.
+
+        Yellow/orange warning background
+
+        Staff Action: Must listen to audio
+    end note
+
+    note right of Timeout
+        ⏱️ Transcription unavailable
+
+        Processing took too long.
+        Please listen to the audio.
+
+        Yellow/orange warning background
+
+        Staff Action: Must listen to audio
+    end note
+
+    Completed --> Deleted: Staff deletes<br/>voicemail
+    Failed --> Deleted: Staff deletes<br/>voicemail
+    Timeout --> Deleted: Staff deletes<br/>voicemail
+
+    Deleted --> [*]
+
+    note left of Deleted
+        Voicemail removed
+        from system
+
+        Cannot be recovered
+    end note
+
+    %% Styling
+    classDef pendingStyle fill:#f8f9fa,stroke:#999,color:#666
+    classDef completedStyle fill:#e8f5e9,stroke:#4caf50,color:#2e7d32
+    classDef failedStyle fill:#fff3cd,stroke:#ffc107,color:#856404
+    classDef deletedStyle fill:#ffebee,stroke:#f44336,color:#c62828
+
+    class Pending pendingStyle
+    class Completed completedStyle
+    class Failed,Timeout failedStyle
+    class Deleted deletedStyle

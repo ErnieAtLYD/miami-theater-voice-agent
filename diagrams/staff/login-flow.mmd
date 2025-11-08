@@ -1,0 +1,36 @@
+flowchart TD
+    Start([Staff Member]) --> CheckSession{Session<br/>Exists?}
+
+    CheckSession -->|Yes| AutoLogin[Automatically<br/>Load Dashboard]
+    CheckSession -->|No| ShowLogin[Show Login Screen]
+
+    ShowLogin --> EnterPassword[Enter Access Password]
+    EnterPassword --> ValidatePassword{Password<br/>Valid?}
+
+    ValidatePassword -->|No| CheckAttempts{Attempts<br/>> 5?}
+    CheckAttempts -->|No| ShowError[Show Error:<br/>'Invalid Password']
+    ShowError --> EnterPassword
+
+    CheckAttempts -->|Yes| RateLimited[Account Locked<br/>15 Minutes]
+    RateLimited --> WaitCooldown[Wait for<br/>Cooldown Period]
+    WaitCooldown --> ShowLogin
+
+    ValidatePassword -->|Yes| SaveSession[Save Session<br/>in Browser]
+    SaveSession --> LoadDashboard[Load Voicemail<br/>Dashboard]
+
+    AutoLogin --> LoadDashboard
+
+    LoadDashboard --> DashboardReady[Dashboard Ready]
+    DashboardReady --> AutoRefresh[Auto-Refresh<br/>Every 30 Seconds]
+
+    DashboardReady --> UserActions{User Action}
+    UserActions -->|Logout| ClearSession[Clear Session]
+    ClearSession --> ShowLogin
+
+    UserActions -->|Continue Working| DashboardReady
+
+    style Start fill:#667eea,stroke:#764ba2,color:#fff
+    style DashboardReady fill:#4caf50,stroke:#388e3c,color:#fff
+    style RateLimited fill:#f44336,stroke:#c62828,color:#fff
+    style ShowError fill:#ff9800,stroke:#f57c00,color:#fff
+    style AutoRefresh fill:#2196f3,stroke:#1976d2,color:#fff

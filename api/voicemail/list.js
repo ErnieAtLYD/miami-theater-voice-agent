@@ -95,6 +95,52 @@ export default async function handler(req, res) {
 }
 
 /**
+ * Determines the transcription state for a voicemail
+ * @param {Object} voicemail - The voicemail data
+ * @returns {Object} State object with {status, message, elapsed}
+ */
+function getTranscriptionState(voicemail) {
+  // Explicit failure from Twilio
+  if (voicemail.transcriptionStatus === 'failed') {
+    return {
+      status: 'failed',
+      message: '⚠️ Transcription unavailable - Twilio was unable to transcribe this recording. Please listen to the audio.',
+      elapsed: null
+    };
+  }
+
+  // Has transcription text
+  if (voicemail.transcription) {
+    return {
+      status: 'completed',
+      message: voicemail.transcription,
+      elapsed: null
+    };
+  }
+
+  // Check for timeout (10 minutes = 600000 ms)
+  const createdAt = new Date(voicemail.createdAt).getTime();
+  const now = Date.now();
+  const elapsed = now - createdAt;
+  const timeoutThreshold = 10 * 60 * 1000; // 10 minutes
+
+  if (elapsed > timeoutThreshold) {
+    return {
+      status: 'timeout',
+      message: '⏱️ Transcription unavailable - Processing took too long. Please listen to the audio.',
+      elapsed: Math.floor(elapsed / 60000) // minutes
+    };
+  }
+
+  // Still pending
+  return {
+    status: 'pending',
+    message: `⏳ Transcription processing... (${Math.floor(elapsed / 60000)} ${Math.floor(elapsed / 60000) === 1 ? 'minute' : 'minutes'} ago)`,
+    elapsed: Math.floor(elapsed / 60000)
+  };
+}
+
+/**
  * Generates an HTML view of the voicemails
  * @param {Object[]} voicemails - The voicemails to display
  * @param {number} total - The total number of voicemails
@@ -212,6 +258,22 @@ function generateHTMLView(voicemails, total) {
       font-style: italic;
       color: #333;
     }
+    .transcription-failed,
+    .transcription-timeout {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+      color: #856404;
+      font-weight: 500;
+    }
+    .transcription-pending {
+      padding: 15px;
+      margin: 15px 0;
+      color: #999;
+      font-style: italic;
+    }
     .actions {
       display: flex;
       gap: 10px;
@@ -293,7 +355,9 @@ function generateHTMLView(voicemails, total) {
           <h2>No Voicemails Yet</h2>
           <p>When customers leave voicemails, they will appear here.</p>
         </div>
-      ` : voicemails.map(vm => `
+      ` : voicemails.map(vm => {
+        const transcriptionState = getTranscriptionState(vm);
+        return `
         <div class="voicemail-card">
           <div class="voicemail-header">
             <div class="caller-info">
@@ -306,11 +370,19 @@ function generateHTMLView(voicemails, total) {
             <span class="duration-badge">${escapeHtml(String(vm.duration))}s</span>
           </div>
 
-          ${vm.transcription ? `
+          ${transcriptionState.status === 'completed' ? `
             <div class="transcription">
-              "${escapeHtml(vm.transcription)}"
+              "${escapeHtml(transcriptionState.message)}"
             </div>
-          ` : '<p style="color: #999; font-style: italic;">Transcription pending...</p>'}
+          ` : transcriptionState.status === 'failed' || transcriptionState.status === 'timeout' ? `
+            <div class="transcription-${transcriptionState.status}">
+              ${transcriptionState.message}
+            </div>
+          ` : `
+            <p class="transcription-pending">
+              ${transcriptionState.message}
+            </p>
+          `}
 
           <div class="actions">
             <a href="${escapeHtml(vm.recordingUrl)}" class="btn btn-primary" target="_blank">🎧 Listen to Recording</a>
@@ -318,7 +390,8 @@ function generateHTMLView(voicemails, total) {
             <button class="btn btn-danger delete-btn" data-id="${escapeHtml(vm.id)}">🗑️ Delete</button>
           </div>
         </div>
-      `).join('')}
+      `;
+      }).join('')}
     </div>
   </div>
 </body>

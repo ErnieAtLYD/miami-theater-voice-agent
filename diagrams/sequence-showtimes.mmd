@@ -1,0 +1,61 @@
+sequenceDiagram
+    participant Cron as Vercel Cron
+    participant Ingest as /api/cron/ingest-showtimes
+    participant Agile as Agile WebSales API
+    participant Redis as Upstash Redis
+    participant Query as /api/showtimes
+    participant Voice as ElevenLabs Voice Agent
+
+    %% Data Ingestion Flow (Every 30 minutes)
+    Note over Cron,Redis: Data Ingestion (Every 30 min)
+    Cron->>Ingest: Trigger scheduled job
+    activate Ingest
+
+    Ingest->>Ingest: Verify CRON_SECRET bearer token
+
+    Ingest->>Agile: GET theater data<br/>(AGILE_GUID)
+    activate Agile
+    Agile-->>Ingest: Raw theater JSON<br/>(movies, showtimes, formats)
+    deactivate Agile
+
+    Ingest->>Ingest: Process & transform data<br/>- Parse dates/times<br/>- Group by date<br/>- Filter weekends<br/>- Create summaries
+
+    Ingest->>Redis: SETEX showtimes:current<br/>TTL: 7200 seconds (2 hours)<br/>Payload: Processed JSON
+    Redis-->>Ingest: OK
+
+    Ingest->>Redis: SET showtimes:last_updated<br/>Timestamp
+    Redis-->>Ingest: OK
+
+    Ingest-->>Cron: 200 OK<br/>{"success": true, "movies_count": N}
+    deactivate Ingest
+
+    %% Query Flow
+    Note over Query,Voice: Voice Agent Query Flow
+
+    Voice->>Query: GET /api/showtimes?<br/>date=2024-01-15&<br/>time_preference=evening
+    activate Query
+
+    Query->>Query: Parse query params<br/>- date, movie_title<br/>- day_type, time_preference
+
+    Query->>Redis: GET showtimes:current
+    activate Redis
+    Redis-->>Query: Cached showtimes JSON
+    deactivate Redis
+
+    alt Cache Miss
+        Query->>Redis: Check if cache exists
+        Redis-->>Query: null
+        Query-->>Voice: 503 Service Unavailable<br/>{"error": "Data not available"}
+    else Cache Hit
+        Query->>Query: Filter showtimes<br/>- Apply date filter<br/>- Apply movie title match<br/>- Apply time preference<br/>- Apply day_type
+
+        Query->>Query: Format for voice<br/>- Human-readable dates<br/>- Voice-friendly times<br/>- Add summaries
+
+        Query-->>Voice: 200 OK<br/>Voice-optimized JSON<br/>with summaries
+    end
+    deactivate Query
+
+    Voice->>Voice: Convert to speech<br/>Read summaries aloud
+
+    %% Styling
+    Note over Cron,Voice: Cache TTL ensures fresh data every 2 hours<br/>Cron runs every 30 min for redundancy
