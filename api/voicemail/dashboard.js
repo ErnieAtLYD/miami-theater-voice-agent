@@ -293,12 +293,13 @@ export default async function handler(req, res) {
       }
     }
 
-    // Set up delete button handlers
+    // Set up delete and lookup button handlers
     function setupDeleteHandlers(token) {
       const dashboardContent = document.getElementById('dashboardContent');
 
-      // Add event delegation for delete buttons
+      // Add event delegation for delete and lookup buttons
       dashboardContent.addEventListener('click', async (e) => {
+        // Handle delete button
         if (e.target.classList.contains('delete-btn') || e.target.closest('.delete-btn')) {
           const btn = e.target.classList.contains('delete-btn') ? e.target : e.target.closest('.delete-btn');
           const voicemailId = btn.getAttribute('data-id');
@@ -336,6 +337,43 @@ export default async function handler(req, res) {
             alert('Failed to delete voicemail. Please try again.');
             btn.disabled = false;
             btn.textContent = '🗑️ Delete';
+          }
+        }
+
+        // Handle lookup button
+        if (e.target.classList.contains('lookup-btn') || e.target.closest('.lookup-btn')) {
+          const btn = e.target.classList.contains('lookup-btn') ? e.target : e.target.closest('.lookup-btn');
+          const voicemailId = btn.getAttribute('data-id');
+
+          if (!voicemailId) return;
+
+          // Disable button during lookup
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = '🔍 Looking up...';
+
+          try {
+            const response = await fetch(\`/api/voicemail/lookup?id=\${voicemailId}\`, {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + token
+              }
+            });
+
+            if (response.ok) {
+              // Reload dashboard to show updated caller info
+              loadDashboard(token);
+            } else {
+              const error = await response.json();
+              alert('Failed to lookup caller: ' + (error.message || error.error || 'Unknown error'));
+              btn.disabled = false;
+              btn.textContent = originalText;
+            }
+          } catch (error) {
+            console.error('Lookup error:', error);
+            alert('Failed to lookup caller information. Please try again.');
+            btn.disabled = false;
+            btn.textContent = originalText;
           }
         }
       });

@@ -3,6 +3,7 @@
 import { createRedisClient } from '../utils/redis-client.js';
 import { validateTwilioRequest } from '../utils/validate-twilio.js';
 import { sendVoicemailEmail } from '../utils/voicemail-email.js';
+import { lookupCaller } from '../utils/twilio-lookup.js';
 
 // Configure Vercel to parse form data
 export const config = {
@@ -74,6 +75,39 @@ export default async function handler(req, res) {
 
     // Store the full voicemail data
     await redis.set(`voicemail:${RecordingSid}`, JSON.stringify(voicemail));
+
+    // Perform caller lookup (async, cached, cost-optimized)
+    // This runs in the background and updates the voicemail record if successful
+    // Failures are logged but don't block the voicemail from being saved
+    (async () => {
+      try {
+        const lookupData = await lookupCaller(From, redis, false);
+        if (lookupData) {
+          // Update voicemail with caller information
+          voicemail.callerName = lookupData.callerName;
+          voicemail.callerType = lookupData.callerType;
+          voicemail.lineType = lookupData.lineType;
+          voicemail.lineTypeIntelligence = {
+            type: lookupData.lineType,
+            carrierName: lookupData.carrierName,
+            mobileCountryCode: lookupData.mobileCountryCode,
+            mobileNetworkCode: lookupData.mobileNetworkCode
+          };
+          voicemail.lookupLastUpdated = lookupData.lastUpdated;
+
+          // Update voicemail in Redis with enriched data
+          try {
+            await redis.set(`voicemail:${RecordingSid}`, JSON.stringify(voicemail));
+            console.log(`Enriched voicemail ${RecordingSid} with caller lookup data`);
+          } catch (err) {
+            console.error('Error saving lookup data:', err);
+          }
+        }
+      } catch (err) {
+        // Log but don't fail - lookup is optional enhancement
+        console.log('Caller lookup failed (non-critical):', err.message);
+      }
+    })();
 
     // Send email notification to staff
     // Note: This uses Resend for email delivery

@@ -3,6 +3,7 @@
 import { createRedisClient } from '../utils/redis-client.js';
 import { validateStaffAuth } from '../utils/auth-staff.js';
 import { escapeHtml } from '../utils/voicemail-email.js';
+import { formatLineType } from '../utils/twilio-lookup.js';
 
 /**
  * Retrieves and displays voicemail list for staff
@@ -250,6 +251,17 @@ function generateHTMLView(voicemails, total) {
       font-size: 12px;
       font-weight: 600;
     }
+    .line-type-badge {
+      display: inline-block;
+      background: #f3e5f5;
+      color: #7b1fa2;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
     .transcription {
       background: #f8f9fa;
       padding: 15px;
@@ -357,14 +369,26 @@ function generateHTMLView(voicemails, total) {
         </div>
       ` : voicemails.map(vm => {
         const transcriptionState = getTranscriptionState(vm);
+        const lineTypeInfo = formatLineType(vm.lineType);
+        const displayName = vm.callerName || vm.from || 'Unknown Caller';
+        const hasLookupData = vm.callerName || vm.lineType;
+        const lookupAge = vm.lookupLastUpdated ? Date.now() - new Date(vm.lookupLastUpdated).getTime() : null;
+        const lookupStale = lookupAge && lookupAge > (30 * 24 * 60 * 60 * 1000); // > 30 days
+        const showLookupButton = !hasLookupData || lookupStale;
+
         return `
         <div class="voicemail-card">
           <div class="voicemail-header">
             <div class="caller-info">
               <div class="caller-avatar">📞</div>
               <div class="caller-details">
-                <h3>${escapeHtml(vm.from) || 'Unknown Caller'}</h3>
-                <p>${escapeHtml(new Date(vm.createdAt).toLocaleString())}</p>
+                <h3>
+                  ${escapeHtml(displayName)}
+                  ${vm.lineType ? `<span class="line-type-badge" title="${escapeHtml(vm.lineTypeIntelligence?.carrierName || vm.lineType)}">${lineTypeInfo.emoji} ${lineTypeInfo.label}</span>` : ''}
+                </h3>
+                <p>
+                  ${vm.callerName ? escapeHtml(vm.from) + ' • ' : ''}${escapeHtml(new Date(vm.createdAt).toLocaleString())}
+                </p>
               </div>
             </div>
             <span class="duration-badge">${escapeHtml(String(vm.duration))}s</span>
@@ -387,6 +411,7 @@ function generateHTMLView(voicemails, total) {
           <div class="actions">
             <a href="${escapeHtml(vm.recordingUrl)}" class="btn btn-primary" target="_blank">🎧 Listen to Recording</a>
             ${vm.recordingUrl ? `<a href="${escapeHtml(vm.recordingUrl)}.mp3" class="btn btn-secondary" download>⬇️ Download MP3</a>` : ''}
+            ${showLookupButton ? `<button class="btn btn-secondary lookup-btn" data-id="${escapeHtml(vm.id)}">🔍 Lookup Caller</button>` : ''}
             <button class="btn btn-danger delete-btn" data-id="${escapeHtml(vm.id)}">🗑️ Delete</button>
           </div>
         </div>

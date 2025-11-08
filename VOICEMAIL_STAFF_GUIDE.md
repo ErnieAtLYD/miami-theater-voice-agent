@@ -124,6 +124,39 @@ Each voicemail card has three action buttons:
    - **Cannot be undone** - use carefully!
    - Use this to clean up after addressing voicemails
 
+4. **🔍 Lookup Caller** (Gray button - appears when needed)
+   - Retrieves caller identification information from Twilio
+   - Shows caller's name and phone line type (Mobile, Landline, VoIP)
+   - Button appears when:
+     - No caller information is available yet
+     - Caller information is older than 30 days
+   - Updates automatically in the background for first-time callers
+   - Click to manually refresh caller information
+
+### Caller Identification
+
+The dashboard automatically enriches voicemail records with caller information using Twilio's Lookup service:
+
+**What You'll See:**
+- **Caller Name** - If available, shows the registered name for the phone number
+- **Line Type Badge** - Visual indicator showing the type of phone line:
+  - 📱 **Mobile** - Cell phone
+  - ☎️ **Landline** - Traditional phone line
+  - 💻 **VoIP** - Internet-based phone (like Google Voice, Skype)
+  - ❓ **Unknown** - Type couldn't be determined
+
+**How It Works:**
+1. **Automatic Lookup** - When someone leaves their first voicemail, the system automatically looks up their information
+2. **Smart Caching** - Information is cached for 30 days to save costs and improve speed
+3. **Manual Refresh** - Click the "🔍 Lookup Caller" button to update information if needed
+
+**Benefits:**
+- Quickly identify repeat callers by name
+- Spot potential spam (unusual VoIP numbers)
+- Prioritize callbacks based on caller information
+
+**Privacy Note:** Caller lookup uses publicly available telephone directory information. The system only stores what Twilio's Lookup service returns.
+
 ---
 
 ## Email Notifications
@@ -351,6 +384,21 @@ A: Yes, multiple staff can be logged in simultaneously. All will see the same vo
 
 **Q: How do I know if someone else already responded to a voicemail?**
 A: The system doesn't currently track this. Coordinate with your team to avoid duplicate responses.
+
+**Q: Why doesn't every voicemail show caller information?**
+A: Caller lookup depends on publicly available telephone directory data. Some numbers (like unlisted numbers, new numbers, or certain VoIP services) may not have associated name information. The system will still show the line type when possible.
+
+**Q: How much does caller lookup cost?**
+A: Each unique phone number lookup costs approximately $0.01. However, results are cached for 30 days, so repeat callers don't incur additional charges. This means if the same person calls multiple times, you only pay once per month.
+
+**Q: Can I disable caller lookup to save costs?**
+A: Yes, system administrators can set `TWILIO_LOOKUP_ENABLED=false` in the environment variables to disable the feature entirely.
+
+**Q: What if the caller name is wrong?**
+A: The name comes from public telephone directories maintained by carriers. If it's incorrect, the caller would need to update their information with their phone carrier. You can click "🔍 Lookup Caller" to refresh the information if it's been updated recently.
+
+**Q: Is caller lookup information shared or sold?**
+A: No. The information is only used within your voicemail dashboard to help staff identify callers. It's stored securely in your database and is not shared with any third parties.
 
 ---
 
