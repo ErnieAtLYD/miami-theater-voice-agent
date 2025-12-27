@@ -1,0 +1,92 @@
+graph TB
+    %% External Actors
+    Caller([Caller])
+    Staff([Staff Member])
+    VoiceAgent([ElevenLabs Voice Agent])
+
+    %% External Services
+    TwilioPhone[Twilio Phone System]
+    AgileAPI[Agile WebSales API]
+    ResendEmail[Resend Email Service]
+
+    %% Vercel Platform
+    subgraph Vercel["Vercel Serverless Platform"]
+        %% Cron Jobs
+        CronJob["Cron Job<br/>Every 30 min"]
+
+        %% API Endpoints - Showtimes
+        subgraph ShowtimesAPI["Showtimes API"]
+            IngestEndpoint["/api/cron/ingest-showtimes"]
+            ShowtimesEndpoint["/api/showtimes"]
+        end
+
+        %% API Endpoints - Voicemail
+        subgraph VoicemailAPI["Voicemail System"]
+            VoicemailTwiML["/api/twilio/voicemail"]
+            VoicemailCallback["/api/twilio/voicemail-callback"]
+            TranscriptionCallback["/api/twilio/voicemail-transcription"]
+            RecordingStatus["/api/twilio/recording-status"]
+            VoicemailList["/api/voicemail/list"]
+            Dashboard["/api/voicemail/dashboard"]
+            DeleteEndpoint["/api/voicemail/delete"]
+            LookupEndpoint["/api/voicemail/lookup"]
+        end
+    end
+
+    %% Data Storage
+    Redis[(Upstash Redis)]
+
+    %% Showtimes Flow
+    CronJob -->|Triggers| IngestEndpoint
+    IngestEndpoint -->|Fetches theater data| AgileAPI
+    IngestEndpoint -->|Caches processed data<br/>TTL: 2 hours| Redis
+    VoiceAgent -->|Query showtimes<br/>date, movie, time| ShowtimesEndpoint
+    ShowtimesEndpoint -->|Retrieves cached data| Redis
+    ShowtimesEndpoint -->|Voice-optimized JSON| VoiceAgent
+
+    %% Voicemail Recording Flow
+    Caller -->|Initiates call| VoiceAgent
+    VoiceAgent -->|Transfers call with context| TwilioPhone
+    TwilioPhone -->|Request TwiML| VoicemailTwiML
+    VoicemailTwiML -->|Returns Record verb| TwilioPhone
+    TwilioPhone -->|Records message<br/>Max 3 min| TwilioPhone
+
+    %% Voicemail Callback Flow
+    TwilioPhone -->|Recording complete| VoicemailCallback
+    VoicemailCallback -->|Stores voicemail data| Redis
+    VoicemailCallback -->|Sends notification| ResendEmail
+    ResendEmail -->|Email with recording link| Staff
+
+    %% Transcription Flow
+    TwilioPhone -->|Transcription ready| TranscriptionCallback
+    TranscriptionCallback -->|Updates with transcription| Redis
+    TranscriptionCallback -->|Sends transcription email| ResendEmail
+
+    %% Status Updates
+    TwilioPhone -->|Recording status| RecordingStatus
+    RecordingStatus -->|Updates status| Redis
+
+    %% Staff Access Flow
+    Staff -->|Access dashboard<br/>Password protected| Dashboard
+    Dashboard -->|Retrieves voicemails| Redis
+    Staff -->|API access<br/>Bearer token| VoicemailList
+    VoicemailList -->|Returns JSON/HTML| Staff
+
+    %% Staff Management Flow
+    Staff -->|Delete voicemail<br/>Bearer token + rate limiting| DeleteEndpoint
+    DeleteEndpoint -->|Removes from index & record| Redis
+    Staff -->|Refresh caller info<br/>Bearer token + rate limiting| LookupEndpoint
+    LookupEndpoint -->|Lookup phone number| TwilioPhone
+    TwilioPhone -->|Caller name & line type| LookupEndpoint
+    LookupEndpoint -->|Updates voicemail record| Redis
+
+    %% Styling
+    classDef external fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef vercel fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef storage fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef actor fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+
+    class AgileAPI,TwilioPhone,ResendEmail external
+    class CronJob,IngestEndpoint,ShowtimesEndpoint,VoicemailTwiML,VoicemailCallback,TranscriptionCallback,RecordingStatus,VoicemailList,Dashboard,DeleteEndpoint,LookupEndpoint vercel
+    class Redis storage
+    class Caller,Staff,VoiceAgent actor
