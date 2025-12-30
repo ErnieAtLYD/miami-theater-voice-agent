@@ -3,6 +3,7 @@
 import { createRedisClient } from '../utils/redis-client.js';
 import { validateTwilioRequest } from '../utils/validate-twilio.js';
 import { sendVoicemailEmail } from '../utils/voicemail-email.js';
+import { sendDiscordNotification } from '../utils/discord-notify.js';
 import { lookupCaller } from '../utils/twilio-lookup.js';
 
 // Configure Vercel to parse form data
@@ -120,6 +121,18 @@ export default async function handler(req, res) {
       }
     } else {
       console.log('Email notification skipped: Missing RESEND_API_KEY or STAFF_EMAIL');
+    }
+
+    // Send Discord notification
+    if (process.env.DISCORD_WEBHOOK_URL) {
+      try {
+        await sendDiscordNotification(voicemail, 'new');
+      } catch (discordError) {
+        console.error('Failed to send Discord notification:', discordError);
+        // Don't fail the request if Discord fails
+      }
+    } else {
+      console.log('Discord notification skipped: Missing DISCORD_WEBHOOK_URL');
     }
 
     // Return TwiML to end the call gracefully
