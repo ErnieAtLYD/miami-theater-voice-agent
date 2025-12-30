@@ -3,6 +3,7 @@
 import { createRedisClient } from '../utils/redis-client.js';
 import { validateTwilioRequest } from '../utils/validate-twilio.js';
 import { sendVoicemailEmail } from '../utils/voicemail-email.js';
+import { sendDiscordNotification } from '../utils/discord-notify.js';
 
 // Configure Vercel to parse form data
 export const config = {
@@ -72,6 +73,15 @@ export default async function handler(req, res) {
               await sendVoicemailEmail(voicemail, 'transcription');
             } catch (emailError) {
               console.error('Failed to send transcription email:', emailError);
+            }
+          }
+
+          // Send Discord notification with transcription
+          if (process.env.DISCORD_WEBHOOK_URL && TranscriptionText) {
+            try {
+              await sendDiscordNotification(voicemail, 'transcription');
+            } catch (discordError) {
+              console.error('Failed to send Discord transcription notification:', discordError);
             }
           }
         } else if (TranscriptionStatus === 'failed') {
