@@ -46,9 +46,10 @@ This is a Vercel-hosted voice agent API for Miami theater showtimes, designed to
 3. Twilio records message (up to 3 minutes) and transcribes
 4. Recording completed → callback stores in Redis
 5. Email notification sent to staff via Resend
-6. Transcription complete → second email with text
-7. Staff accesses via dashboard at `/api/voicemail/list`
-8. Staff can delete voicemails via dashboard to manage storage
+6. Discord notification sent to configured webhook (if enabled)
+7. Transcription complete → second email and Discord notification with text
+8. Staff accesses via dashboard at `/api/voicemail/list`
+9. Staff can delete voicemails via dashboard to manage storage
 
 ### Data Structure
 
@@ -118,6 +119,12 @@ echo "https://..." | vercel env add KV_REST_API_URL production
   - Generate with: `openssl rand -base64 32`
 - `BASE_URL` - Production URL (e.g., https://miami-theater-voice-agent.vercel.app) for TwiML callbacks
 
+**Optional for voicemail system:**
+- `DISCORD_WEBHOOK_URL` - Discord webhook URL for real-time voicemail notifications
+  - Create in Discord: Server Settings → Integrations → Webhooks → New Webhook
+  - Format: `https://discord.com/api/webhooks/{webhook_id}/{webhook_token}`
+  - When configured, sends rich embeds for new voicemails and transcriptions
+
 ### Voice Agent Integration
 
 The API is specifically designed for ElevenLabs voice agents:
@@ -144,8 +151,12 @@ The voicemail system uses Twilio's native voice recording capabilities. The endp
 
 **Staff Notification System:**
 - Email notifications via Resend
-- Immediate notification with recording link
-- Follow-up email with transcription (when ready)
+  - Immediate notification with recording link
+  - Follow-up email with transcription (when ready)
+- Discord notifications (optional)
+  - Real-time rich embeds with caller info and recording link
+  - Second notification with full transcription text
+  - Supports caller name display from Twilio lookup
 - Dashboard access at `/api/voicemail/list`
 
 ### Cron Job Security
@@ -260,9 +271,10 @@ voiceResponse.record({
 4. Recording complete → POST to `/api/twilio/voicemail-callback`
 5. Callback stores voicemail in Redis sorted set
 6. Resend email sent to staff with recording link
-7. Transcription complete → POST to `/api/twilio/voicemail-transcription`
-8. Voicemail record updated with transcription text
-9. Second email sent with full transcription
+7. Discord notification sent with caller info and recording link (if configured)
+8. Transcription complete → POST to `/api/twilio/voicemail-transcription`
+9. Voicemail record updated with transcription text
+10. Second email and Discord notification sent with full transcription
 
 **Voicemail Storage Structure:**
 ```javascript
@@ -304,6 +316,51 @@ The staff authentication system includes automatic rate limiting to prevent brut
   - `checkRateLimit(redis, ip)` - Check if IP is rate limited
   - `recordFailedAttempt(redis, ip)` - Record failed auth attempt
   - `resetRateLimit(redis, ip)` - Reset on successful auth
+
+### Discord Notification Integration
+
+The application uses Discord webhooks for real-time staff notifications:
+
+```javascript
+import { sendDiscordNotification } from '../utils/discord-notify.js';
+
+// Send notification for new voicemail
+await sendDiscordNotification(voicemail, 'new');
+
+// Send notification for transcription
+await sendDiscordNotification(voicemail, 'transcription');
+```
+
+**Key Features:**
+- Rich Discord embeds with formatted voicemail information
+- Two notification types: 'new' (blue embed) and 'transcription' (green embed)
+- Includes caller phone number, duration, timestamp, and recording link
+- Displays caller name when available from Twilio lookup
+- Truncates long transcriptions to Discord's 1024 character limit
+- Graceful error handling - failures don't block voicemail system
+
+**Notification Content:**
+
+*New Voicemail Notification:*
+- 📞 Alert message
+- 📱 Caller phone number
+- 👤 Caller name (if available from Twilio lookup)
+- ⏱️ Recording duration (formatted as minutes/seconds)
+- 🕒 Timestamp
+- 🎧 Direct link to recording
+
+*Transcription Notification:*
+- 📝 Alert message
+- Caller information
+- 📝 Full transcription text
+- 🎧 Link to listen to recording
+
+**Implementation:**
+- `api/utils/discord-notify.js` - Core Discord webhook utility
+- Called from `api/twilio/voicemail-callback.js` (new voicemail)
+- Called from `api/twilio/voicemail-transcription.js` (transcription ready)
+- Uses native `fetch()` API for webhook HTTP POST
+- Optional feature - system works without Discord configured
 
 ### Development Workflow
 

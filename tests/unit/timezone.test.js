@@ -331,7 +331,8 @@ describe('Timezone Utilities', () => {
       const todayEastern = getEasternTimeDate();
       const yesterday = new Date(todayEastern);
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      // Use formatDateYYYYMMDD to avoid UTC conversion issues with toISOString()
+      const yesterdayStr = formatDateYYYYMMDD(yesterday);
       expect(isUpcoming(yesterdayStr)).toBe(false);
     });
 
