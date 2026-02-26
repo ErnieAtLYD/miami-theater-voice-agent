@@ -45,11 +45,15 @@ export default async function handler(req, res) {
       RecordingStatus
     } = req.body;
 
+    // Prefer original caller passed from voicemail.js (resolved via Conference API)
+    const originalFrom = req.query.original_from || From;
+
     console.log('Recording callback received:', {
       RecordingSid,
       RecordingDuration,
       RecordingStatus,
-      From
+      From,
+      originalFrom
     });
 
     // Create voicemail record
@@ -58,7 +62,7 @@ export default async function handler(req, res) {
       recordingUrl: RecordingUrl,
       duration: parseInt(RecordingDuration) || 0,
       callSid: CallSid,
-      from: From,
+      from: originalFrom,
       to: To,
       status: RecordingStatus,
       transcription: null, // Will be updated by transcription callback

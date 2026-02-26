@@ -25,9 +25,8 @@ export function validateTwilioRequest(req) {
   const protocol = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers['x-forwarded-host'] || req.headers.host;
 
-  // Remove query string from URL for validation - Twilio includes params in body
-  const urlPath = req.url.split('?')[0];
-  const url = `${protocol}://${host}${urlPath}`;
+  // Include query string in URL - Twilio signs the full URL including query params
+  const url = `${protocol}://${host}${req.url}`;
 
   // Log for debugging
   console.log('Validating Twilio signature:', {
