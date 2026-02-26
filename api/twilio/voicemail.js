@@ -4,6 +4,26 @@ import twilio from 'twilio';
 
 const { twiml } = twilio;
 
+/**
+ * Query active Twilio conferences to find the original caller's number.
+ * ElevenLabs names conference transfers: transfer_customer_+{phone}_{callSid}
+ */
+async function resolveOriginalCaller(fallback) {
+  try {
+    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    const conferences = await client.conferences.list({ status: 'in-progress', limit: 20 });
+    const transferConf = conferences.find(c => c.friendlyName?.startsWith('transfer_customer_'));
+    const match = transferConf?.friendlyName?.match(/\+(\d+)_/);
+    if (match) {
+      console.log(`Resolved original caller from conference: +${match[1]}`);
+      return `+${match[1]}`;
+    }
+  } catch (err) {
+    console.error('Conference lookup failed:', err.message);
+  }
+  return fallback;
+}
+
 // Configure Vercel to parse form data
 export const config = {
   api: {
@@ -39,6 +59,8 @@ export default async function handler(req, res) {
   }
 
   try {
+    const originalFrom = await resolveOriginalCaller(req.body.From);
+
     // Create TwiML response
     const voiceResponse = new twiml.VoiceResponse();
 
@@ -58,8 +80,8 @@ export default async function handler(req, res) {
       playBeep: true,
       // Trim silence from the beginning and end
       trim: 'trim-silence',
-      // Callback URL for when recording is complete
-      action: `${baseUrl}/api/twilio/voicemail-callback`,
+      // Callback URL for when recording is complete (original caller passed as query param)
+      action: `${baseUrl}/api/twilio/voicemail-callback?original_from=${encodeURIComponent(originalFrom)}`,
       method: 'POST',
       // Enable transcription
       transcribe: true,

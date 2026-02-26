@@ -31,7 +31,7 @@ function createMockRequest(overrides = {}) {
   // Construct full URL
   const protocol = overrides.protocol || 'https';
   const host = overrides.host || 'miami-theater-voice-agent.vercel.app';
-  const fullUrl = `${protocol}://${host}${url.split('?')[0]}`;
+  const fullUrl = `${protocol}://${host}${url}`;
 
   // Generate valid signature for these params
   const signature = overrides.invalidSignature
@@ -265,7 +265,7 @@ describe('validateTwilioRequest', () => {
       expect(result.isValid).toBe(true);
     });
 
-    test('strips query string from URL before validation', () => {
+    test('includes query string in URL for validation', () => {
       const req = createMockRequest({
         url: '/api/twilio/voicemail-callback?debug=true&test=1'
       });
@@ -419,7 +419,7 @@ describe('validateTwilioRequest', () => {
       });
       // Try to use signature from correct domain
       const correctHost = 'miami-theater-voice-agent.vercel.app';
-      const url = `https://${correctHost}${req.url.split('?')[0]}`;
+      const url = `https://${correctHost}${req.url}`;
       const authToken = process.env.TWILIO_AUTH_TOKEN;
       req.headers['x-twilio-signature'] = getExpectedTwilioSignature(
         authToken,

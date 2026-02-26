@@ -278,7 +278,6 @@ describe('Voicemail Callback Flow (E2E Integration Test)', () => {
     jest.unstable_mockModule('../../api/utils/voicemail-email.js', () => ({
       sendVoicemailEmail: emailSendSpy
     }));
-
     // Step 1: Get TwiML from voicemail endpoint
     const voicemailHandler = (await import('../../api/twilio/voicemail.js?t=' + Date.now())).default;
 
@@ -316,7 +315,10 @@ describe('Voicemail Callback Flow (E2E Integration Test)', () => {
       RecordingStatus: 'completed'
     };
 
-    const fullCallbackUrl = `https://miami-theater-voice-agent.vercel.app${new URL(callbackUrl).pathname}`;
+    // Use the full callback URL including query params (e.g. ?original_from=...)
+    // Twilio signs the complete URL, so signature must include query string
+    const parsedCallback = new URL(callbackUrl);
+    const fullCallbackUrl = `https://miami-theater-voice-agent.vercel.app${parsedCallback.pathname}${parsedCallback.search}`;
     const signature = getExpectedTwilioSignature(
       process.env.TWILIO_AUTH_TOKEN,
       fullCallbackUrl,
@@ -325,7 +327,7 @@ describe('Voicemail Callback Flow (E2E Integration Test)', () => {
 
     const { req: callbackReq, res: callbackRes } = createMocks({
       method: 'POST',
-      url: new URL(callbackUrl).pathname,
+      url: `${parsedCallback.pathname}${parsedCallback.search}`,
       headers: {
         'x-twilio-signature': signature,
         'x-forwarded-proto': 'https',
