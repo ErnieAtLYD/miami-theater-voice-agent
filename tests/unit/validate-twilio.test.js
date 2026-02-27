@@ -459,7 +459,7 @@ describe('validateTwilioRequest', () => {
       expect(result.statusCode).toBe(403);
     });
 
-    test('rejects a signature computed on the stripped URL when the request URL has query params', () => {
+    test('rejects old stripped-URL signature for URLs with query params', () => {
       // Regression: the old validator stripped query strings before computing the expected
       // signature. Twilio actually signs the full URL including query params.
       // This test ensures the old stripped-URL signature is permanently rejected.
