@@ -1,5 +1,15 @@
 import { describe, test, expect, jest, beforeAll, beforeEach } from '@jest/globals';
 import { createMocks } from 'node-mocks-http';
+import crypto from 'crypto';
+
+const HOST = 'miami-theater-voice-agent.vercel.app';
+const AUTH_TOKEN = 'test-auth-token';
+
+/** Reproduce Twilio's HMAC-SHA1 signing algorithm */
+function twilioSignature(url, params) {
+  const data = Object.keys(params).sort().reduce((acc, k) => acc + k + params[k], url);
+  return crypto.createHmac('sha1', AUTH_TOKEN).update(Buffer.from(data, 'utf-8')).digest('base64');
+}
 
 // Stable mock reference - shared between the factory closure and individual tests
 // so each test can control what conferences.list() returns via mockResolvedValue / mockRejectedValue
@@ -27,6 +37,12 @@ jest.unstable_mockModule('twilio', () => {
     conferences: { list: mockConferencesList }
   }));
   MockTwilio.twiml = { VoiceResponse: MockVoiceResponse };
+  // validate-twilio.js calls twilio.validateRequest — provide the real algorithm
+  MockTwilio.validateRequest = (authToken, signature, url, params) => {
+    const data = Object.keys(params).sort().reduce((acc, k) => acc + k + params[k], url);
+    const expected = crypto.createHmac('sha1', authToken).update(Buffer.from(data, 'utf-8')).digest('base64');
+    return expected === signature;
+  };
 
   return { default: MockTwilio };
 });
@@ -48,12 +64,22 @@ describe('resolveOriginalCaller (via voicemail handler)', () => {
     process.env.BASE_URL = 'https://miami-theater-voice-agent.vercel.app';
   });
 
-  /** POST request that Twilio would send when a call arrives */
+  /** POST request that Twilio would send when a call arrives, with a valid signature */
   function makeRequest(from = '+12345678901') {
+    const body = { From: from, To: '+19876543210', CallSid: 'CAxxxxx' };
+    const url = '/api/twilio/voicemail';
+    const sig = twilioSignature(`https://${HOST}${url}`, body);
+
     return createMocks({
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: { From: from, To: '+19876543210', CallSid: 'CAxxxxx' }
+      url,
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-twilio-signature': sig,
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': HOST,
+      },
+      body
     });
   }
 

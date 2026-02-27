@@ -112,16 +112,22 @@ describe('Voicemail Callback Flow (E2E Integration Test)', () => {
     // Import handler after setting up environment
     const handler = (await import('../../api/twilio/voicemail.js')).default;
 
+    const voicemailBody = { From: '+12345678901', To: '+19876543210', CallSid: 'CAxxxxx' };
+    const voicemailUrl = 'https://miami-theater-voice-agent.vercel.app/api/twilio/voicemail';
+    const voicemailSig = getExpectedTwilioSignature(
+      process.env.TWILIO_AUTH_TOKEN, voicemailUrl, voicemailBody
+    );
+
     const { req, res } = createMocks({
       method: 'POST',
+      url: '/api/twilio/voicemail',
       headers: {
-        'content-type': 'application/x-www-form-urlencoded'
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-twilio-signature': voicemailSig,
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'miami-theater-voice-agent.vercel.app'
       },
-      body: {
-        From: '+12345678901',
-        To: '+19876543210',
-        CallSid: 'CAxxxxx'
-      }
+      body: voicemailBody
     });
 
     await handler(req, res);
@@ -281,16 +287,22 @@ describe('Voicemail Callback Flow (E2E Integration Test)', () => {
     // Step 1: Get TwiML from voicemail endpoint
     const voicemailHandler = (await import('../../api/twilio/voicemail.js?t=' + Date.now())).default;
 
+    const e2eVoicemailBody = { From: '+12345678901', To: '+19876543210', CallSid: 'CAxxxxx' };
+    const e2eVoicemailUrl = 'https://miami-theater-voice-agent.vercel.app/api/twilio/voicemail';
+    const e2eVoicemailSig = getExpectedTwilioSignature(
+      process.env.TWILIO_AUTH_TOKEN, e2eVoicemailUrl, e2eVoicemailBody
+    );
+
     const { req: voicemailReq, res: voicemailRes } = createMocks({
       method: 'POST',
+      url: '/api/twilio/voicemail',
       headers: {
-        'content-type': 'application/x-www-form-urlencoded'
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-twilio-signature': e2eVoicemailSig,
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'miami-theater-voice-agent.vercel.app'
       },
-      body: {
-        From: '+12345678901',
-        To: '+19876543210',
-        CallSid: 'CAxxxxx'
-      }
+      body: e2eVoicemailBody
     });
 
     await voicemailHandler(voicemailReq, voicemailRes);
