@@ -458,5 +458,48 @@ describe('validateTwilioRequest', () => {
       expect(result.isValid).toBe(false);
       expect(result.statusCode).toBe(403);
     });
+
+    test('rejects old stripped-URL signature for URLs with query params', () => {
+      // Regression: the old validator stripped query strings before computing the expected
+      // signature. Twilio actually signs the full URL including query params.
+      // This test ensures the old stripped-URL signature is permanently rejected.
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const host = 'miami-theater-voice-agent.vercel.app';
+      const pathWithQuery = '/api/twilio/voicemail-callback?original_from=%2B14155551234';
+      const strippedPath = '/api/twilio/voicemail-callback';
+
+      const params = {
+        RecordingSid: 'RExxxxx',
+        RecordingUrl: 'https://api.twilio.com/recordings/RExxxxx',
+        CallSid: 'CAxxxxx',
+        From: '+12345678901',
+        To: '+19876543210'
+      };
+
+      // Compute the signature the OLD (broken) way — against the URL without query params
+      const signatureForStrippedUrl = getExpectedTwilioSignature(
+        authToken,
+        `https://${host}${strippedPath}`,
+        params
+      );
+
+      const req = {
+        method: 'POST',
+        url: pathWithQuery,
+        headers: {
+          'x-twilio-signature': signatureForStrippedUrl,
+          'x-forwarded-proto': 'https',
+          'x-forwarded-host': host,
+          host: host
+        },
+        body: params
+      };
+
+      // Validator must include the query string, so the stripped-URL signature won't match
+      const result = validateTwilioRequest(req);
+
+      expect(result.isValid).toBe(false);
+      expect(result.statusCode).toBe(403);
+    });
   });
 });
