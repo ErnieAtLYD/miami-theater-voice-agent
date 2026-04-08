@@ -1,0 +1,119 @@
+name: Security Review – Twilio Code
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'api/twilio/**'
+      - 'api/utils/validate-twilio.js'
+
+jobs:
+  security-review:
+    name: Security Sentinel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Collect changed Twilio files and diff
+        id: diff
+        run: |
+          BASE=${{ github.event.pull_request.base.sha }}
+          HEAD=${{ github.event.pull_request.head.sha }}
+
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD" -- \
+            'api/twilio/' \
+            'api/utils/validate-twilio.js')
+          echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          git diff "$BASE" "$HEAD" -- \
+            api/twilio/ \
+            api/utils/validate-twilio.js \
+            > /tmp/twilio.diff
+
+      - name: Run security review
+        id: review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          DIFF=$(cat /tmp/twilio.diff)
+
+          REVIEW=$(claude -p "$(cat <<'PROMPT'
+You are a security expert specializing in Twilio webhook integrations.
+
+Review the following git diff for security vulnerabilities. Focus on:
+1. Twilio webhook signature validation — applied on every endpoint before any logic?
+2. Input validation and sanitization of Twilio POST body fields (RecordingSid, RecordingUrl, From, TranscriptionText, etc.)
+3. PII exposure — phone numbers or transcriptions logged to console?
+4. Authentication / authorization correctness
+5. SSRF or injection risks (e.g., unvalidated URLs stored or rendered as links)
+6. Host header injection in URL construction used for HMAC verification
+7. CORS headers on server-to-server webhook endpoints (should not be present)
+8. Any other OWASP Top-10 concerns
+
+Output format:
+- Start with a one-paragraph summary of the change and its overall risk level.
+- List findings as: **[SEVERITY] Title** — description and line reference.
+- If no issues are found, say so explicitly.
+- End with a "Positive findings" section noting any security practices done correctly.
+
+Keep the review concise and actionable. Severities: Critical / High / Medium / Low / Info.
+
+--- DIFF ---
+$DIFF
+PROMPT
+          )" --max-turns 1 2>&1)
+
+          echo "review<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$REVIEW" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Post review as PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const changedFiles = `${{ steps.diff.outputs.changed_files }}`.trim();
+            const review = `${{ steps.review.outputs.review }}`;
+
+            const fileList = changedFiles
+              .split('\n')
+              .filter(Boolean)
+              .map(f => `- \`${f}\``)
+              .join('\n');
+
+            const body = [
+              '## 🔒 Security Review – Twilio Code',
+              '',
+              '**Files reviewed:**',
+              fileList,
+              '',
+              '---',
+              '',
+              review,
+              '',
+              '---',
+              '*Automated review by [Claude Code](https://claude.ai/code) security-sentinel · [workflow](.github/workflows/security-review.yml)*'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });

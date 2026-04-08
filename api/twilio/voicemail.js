@@ -1,6 +1,7 @@
 // api/twilio/voicemail.js
 // Twilio voicemail TwiML endpoint
 import twilio from 'twilio';
+import { validateTwilioRequest } from '../utils/validate-twilio.js';
 
 const { twiml } = twilio;
 
@@ -56,6 +57,12 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Validate Twilio webhook signature
+  const validation = validateTwilioRequest(req);
+  if (!validation.isValid) {
+    return res.status(validation.statusCode).json({ error: validation.error });
   }
 
   try {
